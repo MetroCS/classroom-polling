@@ -4,14 +4,25 @@ import { watchPollHistory } from '../utils/firebaseOps';
 import { db } from '../firebase';
 import { ref, onValue } from 'firebase/database';
 
+const HISTORY_PASSWORD = 'teach123';
+
 export default function PollHistory() {
   const navigate = useNavigate();
+  const [auth, setAuth]             = useState(false);
+  const [pw, setPw]                 = useState('');
+  const [err, setErr]               = useState('');
   const [polls, setPolls]           = useState([]);
   const [attendance, setAttendance] = useState({});
   const [tab, setTab]               = useState('polls');
   const [expanded, setExpanded]     = useState(null);
 
+  // Check if already authenticated this session
   useEffect(() => {
+    if (sessionStorage.getItem('historyAuth') === 'true') setAuth(true);
+  }, []);
+
+  useEffect(() => {
+    if (!auth) return;
     const unsub1 = watchPollHistory(setPolls);
     const unsub2 = onValue(ref(db, 'sessionStudents'), snap => {
       const val = snap.val() || {};
@@ -28,7 +39,43 @@ export default function PollHistory() {
       setAttendance(result);
     });
     return () => { unsub1(); unsub2(); };
-  }, []);
+  }, [auth]);
+
+  function handleLogin(e) {
+    e.preventDefault();
+    if (pw === HISTORY_PASSWORD) {
+      sessionStorage.setItem('historyAuth', 'true');
+      setAuth(true);
+    } else {
+      setErr('Incorrect password.');
+      setPw('');
+    }
+  }
+
+  if (!auth) return (
+    <div style={styles.center}>
+      <div style={styles.loginCard} className="fade-up">
+        <div style={styles.loginLogo}>
+          <span style={{color:'var(--accent)'}}>●</span> ClassPoll
+        </div>
+        <h2 style={{fontSize:'1.4rem', marginBottom:'0.25rem'}}>Poll History</h2>
+        <p style={{color:'var(--muted)', marginBottom:'1.5rem', fontSize:'0.9rem'}}>
+          Enter the teacher password to view history and attendance.
+        </p>
+        <form onSubmit={handleLogin} style={{display:'flex', flexDirection:'column', gap:'0.75rem'}}>
+          <input className="input" type="password" placeholder="Teacher password"
+            value={pw} onChange={e => { setPw(e.target.value); setErr(''); }}
+            autoFocus style={{textAlign:'center'}} />
+          {err && <span style={styles.err}>{err}</span>}
+          <button type="submit" className="btn btn-primary"
+            style={{justifyContent:'center', padding:'0.75rem'}}>
+            View History →
+          </button>
+        </form>
+        <button style={styles.backLink} onClick={() => navigate('/')}>← Back</button>
+      </div>
+    </div>
+  );
 
   return (
     <div style={styles.page}>
@@ -129,6 +176,24 @@ export default function PollHistory() {
 }
 
 const styles = {
+  center: {
+    minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center',
+    padding:'1rem', background:'var(--paper)',
+  },
+  loginCard: {
+    background:'white', borderRadius:16, border:'1px solid var(--border)',
+    padding:'2.5rem 2rem', maxWidth:380, width:'100%', textAlign:'center',
+    boxShadow:'var(--shadow)',
+  },
+  loginLogo: {
+    fontFamily:'var(--font-display)', fontWeight:800, fontSize:'1.1rem',
+    marginBottom:'1.5rem', display:'block',
+  },
+  err: { color:'var(--accent)', fontSize:'0.85rem' },
+  backLink: {
+    background:'none', border:'none', color:'var(--muted)', cursor:'pointer',
+    marginTop:'1rem', fontSize:'0.85rem', display:'block', textAlign:'center',
+  },
   page: { minHeight:'100vh', background:'var(--paper)' },
   header: {
     padding:'1rem 1.5rem', borderBottom:'1px solid var(--border)',
