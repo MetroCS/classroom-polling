@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { watchPollSet, updatePollSet } from '../utils/firebaseOps';
+import { watchPollSet, updatePollSet, launchSet, startPoll } from '../utils/firebaseOps';
 import { pollsToText, parsePollText } from '../utils/pollParser';
 
 const RESULT_OPTIONS = [
@@ -13,10 +13,6 @@ const CORRECT_OPTIONS = [
   { value: 'manual',       label: 'When I choose' },
   { value: 'never',        label: 'Never' },
 ];
-const EMPTY_POLL = {
-  question: '', options: ['', ''], correctIndex: null,
-  duration: null, resultPolicy: null, correctPolicy: null,
-};
 
 export default function PollSetDetail() {
   const { id } = useParams();
@@ -24,7 +20,7 @@ export default function PollSetDetail() {
   const [pollSet, setPollSet]       = useState(null);
   const [polls, setPolls]           = useState([]);
   const [selected, setSelected]     = useState(0);
-  const [viewMode, setViewMode]     = useState('form'); // 'form' | 'text'
+  const [viewMode, setViewMode]     = useState('form');
   const [textValue, setTextValue]   = useState('');
   const [textDirty, setTextDirty]   = useState(false);
   const [parseErr, setParseErr]     = useState('');
@@ -34,15 +30,14 @@ export default function PollSetDetail() {
 
   useEffect(() => {
     if (sessionStorage.getItem('role') !== 'teacher') navigate('/');
-    return watchPollSet(id, set => {
-      if (!set) return;
-      setPollSet(set);
-      setPolls(set.polls || []);
-      setNameValue(set.name || '');
+    return watchPollSet(id, s => {
+      if (!s) return;
+      setPollSet(s);
+      setPolls(s.polls || []);
+      setNameValue(s.name || '');
     });
   }, [id]);
 
-  // Sync text view when switching to it
   useEffect(() => {
     if (viewMode === 'text' && pollSet) {
       setTextValue(pollsToText(polls, pollSet.defaults || {}));
@@ -61,21 +56,18 @@ export default function PollSetDetail() {
     };
   }
 
-  // ── Form editing ─────────────────────────────────────────
-
-  function updatePoll(field, value) {
-    const next = polls.map((p, i) => i === selected ? { ...p, [field]: value } : p);
-    setPolls(next);
+  function updatePollField(field, value) {
+    setPolls(polls.map((p, i) => i === selected ? { ...p, [field]: value } : p));
   }
 
   function updateOption(i, value) {
     const opts = effectivePoll(polls[selected]).options.map((o, j) => j === i ? value : o);
-    updatePoll('options', opts);
+    updatePollField('options', opts);
   }
 
   function addOption() {
     const opts = [...(polls[selected].options || []), ''];
-    if (opts.length <= 6) updatePoll('options', opts);
+    if (opts.length <= 6) updatePollField('options', opts);
   }
 
   function removeOption(i) {
@@ -85,12 +77,11 @@ export default function PollSetDetail() {
     let ci = poll.correctIndex;
     if (ci === i) ci = null;
     else if (ci > i) ci = ci - 1;
-    const next = polls.map((p, idx) => idx === selected ? { ...p, options: opts, correctIndex: ci } : p);
-    setPolls(next);
+    setPolls(polls.map((p, idx) => idx === selected ? { ...p, options: opts, correctIndex: ci } : p));
   }
 
   function addPoll() {
-    const next = [...polls, { ...EMPTY_POLL, options: ['', ''] }];
+    const next = [...polls, { question: '', options: ['', ''], correctIndex: null }];
     setPolls(next);
     setSelected(next.length - 1);
   }
@@ -111,8 +102,6 @@ export default function PollSetDetail() {
     setSelected(j);
   }
 
-  // ── Text editing ──────────────────────────────────────────
-
   function applyTextChanges() {
     setParseErr('');
     try {
@@ -127,8 +116,6 @@ export default function PollSetDetail() {
     }
   }
 
-  // ── Save ─────────────────────────────────────────────────
-
   async function handleSave() {
     await updatePollSet(id, { polls });
     setSaved(true);
@@ -140,6 +127,27 @@ export default function PollSetDetail() {
     setEditName(false);
   }
 
+  async function handleLaunch() {
+    if (!polls || polls.length === 0) {
+      alert('No polls in this set.');
+      return;
+    }
+    // Save any unsaved changes first
+    await updatePollSet(id, { polls });
+    const d = pollSet.defaults || {};
+    const first = polls[0];
+    await launchSet(pollSet.id, pollSet.name, polls.length);
+    await startPoll({
+      question:      first.question,
+      options:       first.options,
+      correctIndex:  first.correctIndex ?? null,
+      duration:      first.duration      ?? d.duration      ?? 60,
+      resultPolicy:  first.resultPolicy  ?? d.resultPolicy  ?? 'on_submit',
+      correctPolicy: first.correctPolicy ?? d.correctPolicy ?? 'with_results',
+    });
+    navigate('/teacher');
+  }
+
   if (!pollSet) return (
     <div style={{padding:'2rem', textAlign:'center', color:'var(--muted)'}}>Loading…</div>
   );
@@ -149,7 +157,6 @@ export default function PollSetDetail() {
 
   return (
     <div style={styles.page}>
-      {/* Header */}
       <header style={styles.header}>
         <button style={styles.back} onClick={() => navigate('/pollsets')}>← Poll Sets</button>
         <div style={styles.titleArea}>
@@ -163,16 +170,20 @@ export default function PollSetDetail() {
                 onChange={e => setNameValue(e.target.value)}
                 style={{fontSize:'1rem', padding:'0.4rem 0.6rem'}}
                 autoFocus
-                onKeyDown={e => { if (e.key==='Enter') handleSaveName(); if (e.key==='Escape') setEditName(false); }} />
-              <button className="btn btn-primary" style={{padding:'0.4rem 0.8rem', fontSize:'0.85rem'}}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') handleSaveName();
+                  if (e.key === 'Escape') setEditName(false);
+                }} />
+              <button className="btn btn-primary"
+                style={{padding:'0.4rem 0.8rem', fontSize:'0.85rem'}}
                 onClick={handleSaveName}>Save</button>
-              <button className="btn btn-secondary" style={{padding:'0.4rem 0.8rem', fontSize:'0.85rem'}}
+              <button className="btn btn-secondary"
+                style={{padding:'0.4rem 0.8rem', fontSize:'0.85rem'}}
                 onClick={() => setEditName(false)}>Cancel</button>
             </div>
           )}
         </div>
 
-        {/* View toggle */}
         <div style={styles.viewToggle}>
           <button style={{...styles.toggleBtn, ...(viewMode==='form' ? styles.toggleActive : {})}}
             onClick={() => setViewMode('form')}>Form view</button>
@@ -180,9 +191,15 @@ export default function PollSetDetail() {
             onClick={() => setViewMode('text')}>Text view</button>
         </div>
 
-        <button className="btn btn-primary" onClick={handleSave}
-          style={{background: saved ? 'var(--success)' : undefined}}>
+        <button className="btn btn-secondary" onClick={handleSave}
+          style={{background: saved ? '#dcfce7' : undefined,
+            borderColor: saved ? 'var(--success)' : undefined,
+            color: saved ? 'var(--success)' : undefined}}>
           {saved ? '✓ Saved' : 'Save Changes'}
+        </button>
+
+        <button className="btn btn-primary" onClick={handleLaunch}>
+          Launch →
         </button>
       </header>
 
@@ -190,35 +207,38 @@ export default function PollSetDetail() {
         {/* ── Form view ── */}
         {viewMode === 'form' && (
           <>
-            {/* Left panel — poll list */}
             <aside style={styles.pollList}>
               <div style={styles.pollListHeader}>
                 <span style={{fontSize:'0.8rem', color:'var(--muted)', fontWeight:600}}>
                   {polls.length} POLL{polls.length !== 1 ? 'S' : ''}
                 </span>
-                <button className="btn btn-ghost" style={{fontSize:'0.78rem', padding:'0.3rem 0.6rem'}}
+                <button className="btn btn-ghost"
+                  style={{fontSize:'0.78rem', padding:'0.3rem 0.6rem'}}
                   onClick={addPoll}>+ Add</button>
               </div>
               {polls.map((poll, i) => (
-                <div key={i} style={{...styles.pollItem, ...(selected===i ? styles.pollItemActive : {})}}
+                <div key={i}
+                  style={{...styles.pollItem, ...(selected===i ? styles.pollItemActive : {})}}
                   onClick={() => setSelected(i)}>
                   <span style={styles.pollItemNum}>{i+1}</span>
                   <span style={styles.pollItemQ}>
                     {poll.question || <em style={{color:'var(--muted)'}}>Untitled</em>}
                   </span>
                   <div style={styles.pollItemActions}>
-                    <button style={styles.microBtn} onClick={e => { e.stopPropagation(); movePoll(i, -1); }}
-                      disabled={i===0}>↑</button>
-                    <button style={styles.microBtn} onClick={e => { e.stopPropagation(); movePoll(i, 1); }}
-                      disabled={i===polls.length-1}>↓</button>
-                    <button style={styles.microBtn} onClick={e => { e.stopPropagation(); deletePoll(i); }}
-                      disabled={polls.length<=1}>✕</button>
+                    <button style={styles.microBtn}
+                      onClick={e => { e.stopPropagation(); movePoll(i, -1); }}
+                      disabled={i === 0}>↑</button>
+                    <button style={styles.microBtn}
+                      onClick={e => { e.stopPropagation(); movePoll(i, 1); }}
+                      disabled={i === polls.length - 1}>↓</button>
+                    <button style={styles.microBtn}
+                      onClick={e => { e.stopPropagation(); deletePoll(i); }}
+                      disabled={polls.length <= 1}>✕</button>
                   </div>
                 </div>
               ))}
             </aside>
 
-            {/* Right panel — poll editor */}
             <main style={styles.editor}>
               {currentPoll && (
                 <div style={styles.editorInner} className="fade-up">
@@ -227,7 +247,7 @@ export default function PollSetDetail() {
                     <textarea className="input" rows={3}
                       placeholder="Enter your question…"
                       value={polls[selected].question}
-                      onChange={e => updatePoll('question', e.target.value)}
+                      onChange={e => updatePollField('question', e.target.value)}
                       style={{resize:'vertical', width:'100%'}} />
                   </div>
 
@@ -240,7 +260,7 @@ export default function PollSetDetail() {
                           <button type="button"
                             style={{...styles.correctBtn,
                               ...(polls[selected].correctIndex===i ? styles.correctBtnActive : {})}}
-                            onClick={() => updatePoll('correctIndex',
+                            onClick={() => updatePollField('correctIndex',
                               polls[selected].correctIndex===i ? null : i)}>
                             {polls[selected].correctIndex===i ? '✓' : String.fromCharCode(65+i)}
                           </button>
@@ -261,7 +281,6 @@ export default function PollSetDetail() {
                     )}
                   </div>
 
-                  {/* Per-poll overrides */}
                   <div style={styles.overridesBox}>
                     <label className="label">
                       Per-poll overrides
@@ -276,25 +295,28 @@ export default function PollSetDetail() {
                         <input className="input" type="number" min={10} max={300}
                           placeholder={`default: ${defaults.duration ?? 60}`}
                           value={polls[selected].duration ?? ''}
-                          onChange={e => updatePoll('duration', e.target.value === '' ? null : Number(e.target.value))}
+                          onChange={e => updatePollField('duration',
+                            e.target.value === '' ? null : Number(e.target.value))}
                           style={{width:100}} />
                       </div>
                       <div>
                         <label className="label" style={{fontSize:'0.72rem'}}>Show results</label>
                         <select className="input"
                           value={polls[selected].resultPolicy ?? ''}
-                          onChange={e => updatePoll('resultPolicy', e.target.value || null)}>
+                          onChange={e => updatePollField('resultPolicy', e.target.value || null)}>
                           <option value="">Set default ({defaults.resultPolicy ?? 'on_submit'})</option>
-                          {RESULT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                          {RESULT_OPTIONS.map(o =>
+                            <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                       </div>
                       <div>
                         <label className="label" style={{fontSize:'0.72rem'}}>Reveal answer</label>
                         <select className="input"
                           value={polls[selected].correctPolicy ?? ''}
-                          onChange={e => updatePoll('correctPolicy', e.target.value || null)}>
+                          onChange={e => updatePollField('correctPolicy', e.target.value || null)}>
                           <option value="">Set default ({defaults.correctPolicy ?? 'with_results'})</option>
-                          {CORRECT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                          {CORRECT_OPTIONS.map(o =>
+                            <option key={o.value} value={o.value}>{o.label}</option>)}
                         </select>
                       </div>
                     </div>
@@ -311,7 +333,7 @@ export default function PollSetDetail() {
             <p style={styles.textHint}>
               Edit all polls as plain text. Use <code>---</code> to separate polls.
               Per-poll overrides: <code>duration: 90</code>, <code>results: manual</code>, <code>correct: never</code>.
-              When done, click <strong>Apply Changes</strong> to update the form view.
+              Click <strong>Apply Changes</strong> to update the form view, then <strong>Save Changes</strong> to persist.
             </p>
             <textarea className="input"
               value={textValue}
@@ -342,7 +364,7 @@ const styles = {
   page: { minHeight:'100vh', background:'var(--paper)', display:'flex', flexDirection:'column' },
   header: {
     padding:'1rem 1.5rem', borderBottom:'1px solid var(--border)',
-    background:'white', display:'flex', alignItems:'center', gap:'1rem', flexWrap:'wrap',
+    background:'white', display:'flex', alignItems:'center', gap:'0.75rem', flexWrap:'wrap',
   },
   back: { background:'none', border:'none', color:'var(--accent2)', cursor:'pointer', fontSize:'0.9rem' },
   titleArea: { flex:1 },
