@@ -2,21 +2,21 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { watchPollHistory } from '../utils/firebaseOps';
 import { db } from '../firebase';
-import { ref, onValue } from 'firebase/database';
+import { ref, onValue, remove } from 'firebase/database';
 
 const HISTORY_PASSWORD = 'teach123';
 
 export default function PollHistory() {
   const navigate = useNavigate();
-  const [auth, setAuth]             = useState(false);
-  const [pw, setPw]                 = useState('');
-  const [err, setErr]               = useState('');
-  const [polls, setPolls]           = useState([]);
-  const [attendance, setAttendance] = useState({});
-  const [tab, setTab]               = useState('polls');
-  const [expanded, setExpanded]     = useState(null);
+  const [auth, setAuth]               = useState(false);
+  const [pw, setPw]                   = useState('');
+  const [err, setErr]                 = useState('');
+  const [polls, setPolls]             = useState([]);
+  const [attendance, setAttendance]   = useState({});
+  const [tab, setTab]                 = useState('polls');
+  const [expanded, setExpanded]       = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null); // poll id to confirm
 
-  // Check if already authenticated this session
   useEffect(() => {
     if (sessionStorage.getItem('historyAuth') === 'true') setAuth(true);
   }, []);
@@ -52,6 +52,12 @@ export default function PollHistory() {
     }
   }
 
+  function handleDelete(pollId) {
+    remove(ref(db, `pollHistory/${pollId}`));
+    setConfirmDelete(null);
+    setExpanded(null);
+  }
+
   if (!auth) return (
     <div style={styles.center}>
       <div style={styles.loginCard} className="fade-up">
@@ -62,7 +68,8 @@ export default function PollHistory() {
         <p style={{color:'var(--muted)', marginBottom:'1.5rem', fontSize:'0.9rem'}}>
           Enter the teacher password to view history and attendance.
         </p>
-        <form onSubmit={handleLogin} style={{display:'flex', flexDirection:'column', gap:'0.75rem'}}>
+        <form onSubmit={handleLogin}
+          style={{display:'flex', flexDirection:'column', gap:'0.75rem'}}>
           <input className="input" type="password" placeholder="Teacher password"
             value={pw} onChange={e => { setPw(e.target.value); setErr(''); }}
             autoFocus style={{textAlign:'center'}} />
@@ -100,17 +107,46 @@ export default function PollHistory() {
               const responses = poll.responses || {};
               const total = Object.keys(responses).length;
               const isOpen = expanded === idx;
+              const isConfirming = confirmDelete === poll.id;
+
               return (
                 <div key={poll.id || idx} style={styles.pollCard}>
-                  <button style={styles.pollHeader2} onClick={() => setExpanded(isOpen ? null : idx)}>
-                    <div>
-                      <div style={styles.pollQ}>{poll.question}</div>
-                      <div style={styles.pollMeta}>
-                        {new Date(poll.startedAt).toLocaleString()} · {total} responses
+                  <div style={styles.pollHeaderRow}>
+                    <button style={styles.pollHeaderBtn}
+                      onClick={() => setExpanded(isOpen ? null : idx)}>
+                      <div>
+                        <div style={styles.pollQ}>{poll.question}</div>
+                        <div style={styles.pollMeta}>
+                          {new Date(poll.startedAt).toLocaleString()} · {total} response{total !== 1 ? 's' : ''}
+                        </div>
                       </div>
-                    </div>
-                    <span style={{color:'var(--muted)'}}>{isOpen ? '▲' : '▼'}</span>
-                  </button>
+                      <span style={{color:'var(--muted)', marginLeft:'auto'}}>{isOpen ? '▲' : '▼'}</span>
+                    </button>
+
+                    {/* Delete controls */}
+                    {!isConfirming ? (
+                      <button style={styles.deleteBtn}
+                        onClick={() => setConfirmDelete(poll.id)}
+                        title="Delete this poll">
+                        🗑
+                      </button>
+                    ) : (
+                      <div style={styles.confirmRow}>
+                        <span style={styles.confirmText}>Delete?</span>
+                        <button className="btn btn-primary"
+                          style={{fontSize:'0.78rem', padding:'0.3rem 0.7rem', background:'#dc2626'}}
+                          onClick={() => handleDelete(poll.id)}>
+                          Yes
+                        </button>
+                        <button className="btn btn-secondary"
+                          style={{fontSize:'0.78rem', padding:'0.3rem 0.7rem'}}
+                          onClick={() => setConfirmDelete(null)}>
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   {isOpen && (
                     <div style={styles.pollDetails}>
                       {(poll.options || []).map((opt, i) => {
@@ -120,10 +156,15 @@ export default function PollHistory() {
                         return (
                           <div key={i} style={styles.histOpt}>
                             <div style={{display:'flex', justifyContent:'space-between', marginBottom:4}}>
-                              <span style={{fontWeight: isCorrect ? 600 : 400, color: isCorrect ? 'var(--success)' : 'inherit'}}>
+                              <span style={{
+                                fontWeight: isCorrect ? 600 : 400,
+                                color: isCorrect ? 'var(--success)' : 'inherit'
+                              }}>
                                 {String.fromCharCode(65+i)}. {opt} {isCorrect && '✓'}
                               </span>
-                              <span style={{color:'var(--muted)', fontSize:'0.85rem'}}>{votes} ({pct}%)</span>
+                              <span style={{color:'var(--muted)', fontSize:'0.85rem'}}>
+                                {votes} ({pct}%)
+                              </span>
                             </div>
                             <div style={styles.barBg}>
                               <div style={{...styles.barFill, width:`${pct}%`,
@@ -157,10 +198,12 @@ export default function PollHistory() {
             )}
             {Object.entries(attendance).sort(([a],[b]) => b.localeCompare(a)).map(([date, names]) => (
               <div key={date} style={styles.pollCard}>
-                <div style={styles.pollHeader2}>
-                  <div>
+                <div style={styles.pollHeaderRow}>
+                  <div style={{padding:'0.25rem 0'}}>
                     <div style={styles.pollQ}>{date}</div>
-                    <div style={styles.pollMeta}>{names.length} student{names.length !== 1 ? 's' : ''}</div>
+                    <div style={styles.pollMeta}>
+                      {names.length} student{names.length !== 1 ? 's' : ''}
+                    </div>
                   </div>
                 </div>
                 <div style={{padding:'0 1rem 1rem', display:'flex', flexWrap:'wrap', gap:'0.4rem'}}>
@@ -209,14 +252,34 @@ const styles = {
   tabActive: { background:'white', color:'var(--ink)', fontWeight:600, boxShadow:'0 1px 3px rgba(0,0,0,0.1)' },
   main: { maxWidth:720, margin:'0 auto', padding:'1.5rem 1rem' },
   empty: { textAlign:'center', color:'var(--muted)', padding:'3rem', fontSize:'0.95rem' },
-  pollCard: { background:'white', borderRadius:12, border:'1px solid var(--border)', marginBottom:'0.75rem', overflow:'hidden' },
-  pollHeader2: {
-    display:'flex', justifyContent:'space-between', alignItems:'center',
-    padding:'1rem', background:'none', border:'none', width:'100%', cursor:'pointer', textAlign:'left',
+  pollCard: {
+    background:'white', borderRadius:12, border:'1px solid var(--border)',
+    marginBottom:'0.75rem', overflow:'hidden',
+  },
+  pollHeaderRow: {
+    display:'flex', alignItems:'center', gap:'0.5rem',
+    padding:'0.75rem 1rem', borderBottom:'1px solid transparent',
+  },
+  pollHeaderBtn: {
+    display:'flex', alignItems:'center', gap:'0.75rem',
+    background:'none', border:'none', cursor:'pointer', textAlign:'left', flex:1,
+    padding:'0.25rem 0',
   },
   pollQ: { fontFamily:'var(--font-display)', fontWeight:600, fontSize:'0.95rem' },
   pollMeta: { color:'var(--muted)', fontSize:'0.8rem', marginTop:'0.2rem' },
-  pollDetails: { padding:'0 1rem 1rem', borderTop:'1px solid var(--border)', paddingTop:'0.75rem' },
+  deleteBtn: {
+    background:'none', border:'none', cursor:'pointer', fontSize:'1.1rem',
+    padding:'0.25rem 0.4rem', borderRadius:6, flexShrink:0,
+    opacity:0.5, transition:'opacity 0.15s',
+  },
+  confirmRow: {
+    display:'flex', alignItems:'center', gap:'0.4rem', flexShrink:0,
+  },
+  confirmText: { fontSize:'0.82rem', color:'var(--muted)', whiteSpace:'nowrap' },
+  pollDetails: {
+    padding:'0.75rem 1rem 1rem',
+    borderTop:'1px solid var(--border)',
+  },
   histOpt: { marginBottom:'0.6rem' },
   barBg: { height:6, borderRadius:3, background:'var(--cream)', overflow:'hidden' },
   barFill: { height:'100%', borderRadius:3, transition:'width 0.3s' },
