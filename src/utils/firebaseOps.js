@@ -19,7 +19,7 @@ export function submitAnswer(studentName, pollId, selectedIndex) {
   });
 }
 
-export function startPoll({ question, options, correctIndex, duration }) {
+export function startPoll({ question, options, correctIndex, duration, resultPolicy, correctPolicy }) {
   const pollId = `poll_${Date.now()}`;
   return set(ref(db, 'session/activePoll'), {
     id: pollId,
@@ -27,21 +27,35 @@ export function startPoll({ question, options, correctIndex, duration }) {
     options,
     correctIndex: correctIndex ?? null,
     duration,
+    resultPolicy,
+    correctPolicy,
     startedAt: Date.now(),
     responses: {},
+    ended: false,
+    revealResults: false,
+    revealCorrect: false,
   });
 }
 
-export async function endPoll(poll) {
-  // Read the latest state from Firebase before archiving
+export async function endPoll(revealResults, revealCorrect) {
   const snap = await get(ref(db, 'session/activePoll'));
   const latest = snap.val();
   if (!latest) return;
   await set(ref(db, `pollHistory/${latest.id}`), {
     ...latest,
+    revealResults,
+    revealCorrect,
     endedAt: Date.now(),
   });
   return remove(ref(db, 'session/activePoll'));
+}
+
+export function expirePoll() {
+  return update(ref(db, 'session/activePoll'), { ended: true });
+}
+
+export function revealPollResults(revealResults, revealCorrect) {
+  return update(ref(db, 'session/activePoll'), { revealResults, revealCorrect });
 }
 
 export function clearSession() {
