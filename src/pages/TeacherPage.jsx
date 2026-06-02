@@ -127,6 +127,9 @@ export default function TeacherPage() {
             disabled={!!activePoll}>
             ➕ New Poll
           </button>
+          <button style={styles.navBtn} onClick={() => navigate('/pollsets')}>
+            📚 Poll Sets
+            </button>
           <button style={styles.navBtn} onClick={() => navigate('/history')}>
             🕐 History
           </button>
