@@ -156,3 +156,25 @@ export function watchQueue(callback) {
   const r = ref(db, 'session/queue');
   return onValue(r, snap => callback(snap.val()));
 }
+// Close current poll without clearing queue (used mid-set)
+export async function closePoll(revealResults, revealCorrect) {
+  const snap = await get(ref(db, 'session/activePoll'));
+  const latest = snap.val();
+  const queueSnap = await get(ref(db, 'session/queue'));
+  const queue = queueSnap.val();
+  if (!latest) return;
+  const historyEntry = {
+    ...latest,
+    revealResults,
+    revealCorrect,
+    endedAt: Date.now(),
+  };
+  if (queue) {
+    historyEntry.setId      = queue.setId;
+    historyEntry.setName    = queue.setName;
+    historyEntry.setPosition = queue.currentIndex;
+    historyEntry.sessionKey = queue.sessionKey;
+  }
+  await set(ref(db, `pollHistory/${latest.id}`), historyEntry);
+  return remove(ref(db, 'session/activePoll'));
+}
