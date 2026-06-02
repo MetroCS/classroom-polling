@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  startPoll, endPoll, expirePoll, revealPollResults,
+  startPoll, endPoll, closePoll, expirePoll, revealPollResults,
   watchActivePoll, watchStudents, watchQueue, advanceQueue, clearQueue
 } from '../utils/firebaseOps';
 
@@ -20,19 +20,21 @@ const CORRECT_OPTIONS = [
 
 export default function TeacherPage() {
   const navigate = useNavigate();
-  const [students, setStudents]         = useState([]);
-  const [activePoll, setActivePoll]     = useState(null);
-  const [timeLeft, setTimeLeft]         = useState(0);
-  const [view, setView]                 = useState('dashboard');
-  const [queue, setQueue]               = useState(null);
-  const [queueSet, setQueueSet]         = useState(null); // full poll set data
+  const [students, setStudents]           = useState([]);
+  const [activePoll, setActivePoll]       = useState(null);
+  const [timeLeft, setTimeLeft]           = useState(0);
+  const [view, setView]                   = useState('dashboard');
+  const [queue, setQueue]                 = useState(null);
+  const [queueSet, setQueueSet]           = useState(null);
   const timerRef = useRef(null);
+  const queueSetUnsubRef = useRef(null);
+  const lastPollRef = useRef(null);  // retains last poll for display after End Poll
 
-  const [question, setQuestion]         = useState('');
-  const [options, setOptions]           = useState(['', '']);
-  const [correctIndex, setCorrectIndex] = useState(null);
-  const [duration, setDuration]         = useState(DEFAULT_DURATION);
-  const [resultPolicy, setResultPolicy] = useState('on_submit');
+  const [question, setQuestion]           = useState('');
+  const [options, setOptions]             = useState(['', '']);
+  const [correctIndex, setCorrectIndex]   = useState(null);
+  const [duration, setDuration]           = useState(DEFAULT_DURATION);
+  const [resultPolicy, setResultPolicy]   = useState('on_submit');
   const [correctPolicy, setCorrectPolicy] = useState('with_results');
 
   useEffect(() => {
@@ -41,6 +43,7 @@ export default function TeacherPage() {
 
   useEffect(() => {
     const unsub1 = watchActivePoll(poll => {
+      if (poll) lastPollRef.current = poll;
       setActivePoll(poll);
       if (poll && !poll.ended) setTimeLeft(Math.max(0,
         Math.round(poll.duration - (Date.now() - poll.startedAt) / 1000)
@@ -49,13 +52,18 @@ export default function TeacherPage() {
     const unsub2 = watchStudents(setStudents);
     const unsub3 = watchQueue(q => {
       setQueue(q);
-      // Load the poll set data if queue is active
       if (q?.setId) {
+        if (queueSetUnsubRef.current) queueSetUnsubRef.current();
         import('../utils/firebaseOps').then(({ watchPollSet }) => {
-          watchPollSet(q.setId, setQueueSet);
+          queueSetUnsubRef.current = watchPollSet(q.setId, setQueueSet);
         });
       } else {
         setQueueSet(null);
+        lastPollRef.current = null;
+        if (queueSetUnsubRef.current) {
+          queueSetUnsubRef.current();
+          queueSetUnsubRef.current = null;
+        }
       }
     });
     return () => { unsub1(); unsub2(); unsub3(); };
@@ -96,7 +104,10 @@ export default function TeacherPage() {
     e.preventDefault();
     const filled = options.filter(o => o.trim());
     if (!question.trim() || filled.length < 2) return;
-    startPoll({ question: question.trim(), options: filled, correctIndex, duration, resultPolicy, correctPolicy });
+    startPoll({
+      question: question.trim(), options: filled, correctIndex,
+      duration, resultPolicy, correctPolicy,
+    });
     setQuestion(''); setOptions(['', '']); setCorrectIndex(null);
     setDuration(DEFAULT_DURATION); setResultPolicy('on_submit'); setCorrectPolicy('with_results');
     setView('dashboard');
@@ -105,32 +116,46 @@ export default function TeacherPage() {
   async function handleNextPoll() {
     if (!queue || !queueSet) return;
     const nextIndex = queue.currentIndex + 1;
+    // Save current poll to history if still active
+    if (activePoll) {
+      await endPoll(activePoll.revealResults || false, activePoll.revealCorrect || false);
+    }
     if (nextIndex >= queue.totalPolls) {
-      // End of set
-      await endPoll(activePoll?.revealResults || false, activePoll?.revealCorrect || false);
       await clearQueue();
       return;
     }
-    // End current poll, start next
-    await endPoll(activePoll?.revealResults || false, activePoll?.revealCorrect || false);
+    await advanceQueue(nextIndex);
     const d = queueSet.defaults || {};
     const next = (queueSet.polls || [])[nextIndex];
     if (!next) return;
-    await advanceQueue(nextIndex);
     await startPoll({
-      question: next.question,
-      options: next.options,
-      correctIndex: next.correctIndex ?? null,
-      duration: next.duration ?? d.duration ?? 60,
-      resultPolicy: next.resultPolicy ?? d.resultPolicy ?? 'on_submit',
+      question:      next.question,
+      options:       next.options,
+      correctIndex:  next.correctIndex ?? null,
+      duration:      next.duration      ?? d.duration      ?? 60,
+      resultPolicy:  next.resultPolicy  ?? d.resultPolicy  ?? 'on_submit',
       correctPolicy: next.correctPolicy ?? d.correctPolicy ?? 'with_results',
     });
   }
 
-  const responseCount = activePoll ? Object.keys(activePoll.responses || {}).length : 0;
+  async function handleExitSet() {
+    if (activePoll) {
+      await endPoll(activePoll.revealResults || false, activePoll.revealCorrect || false);
+    }
+    await clearQueue();
+  }
+
+  const responseCount = activePoll
+    ? Object.keys(activePoll.responses || {}).length
+    : Object.keys(lastPollRef.current?.responses || {}).length;
+
   const pollExpired = activePoll?.ended;
   const isQueued = !!queue;
   const isLastPoll = queue && queue.currentIndex >= queue.totalPolls - 1;
+
+  // What to display in the poll card — active poll, or last poll if in a set
+  const displayPoll = activePoll || (isQueued ? lastPollRef.current : null);
+  const isPollClosed = !activePoll && displayPoll; // poll ended but still showing results
 
   function studentSeesResults(poll) {
     if (poll.revealResults) return true;
@@ -156,7 +181,8 @@ export default function TeacherPage() {
           <button style={{...styles.navBtn, ...(view==='dashboard' ? styles.navActive : {})}}
             onClick={() => setView('dashboard')}>📊 Dashboard</button>
           <button
-            style={{...styles.navBtn, ...(view==='create' ? styles.navActive : {}), ...(activePoll ? styles.navDisabled : {})}}
+            style={{...styles.navBtn, ...(view==='create' ? styles.navActive : {}),
+              ...(activePoll ? styles.navDisabled : {})}}
             onClick={() => !activePoll && setView('create')}
             disabled={!!activePoll}>
             ➕ New Poll
@@ -198,7 +224,7 @@ export default function TeacherPage() {
                 <textarea className="input" rows={2}
                   placeholder="e.g. Which process converts sunlight into energy?"
                   value={question} onChange={e => setQuestion(e.target.value)}
-                  style={{resize:'vertical'}} required />
+                  style={{resize:'vertical', width:'100%'}} required />
               </div>
               <div>
                 <label className="label">Answer Options</label>
@@ -207,7 +233,8 @@ export default function TeacherPage() {
                   {options.map((opt, i) => (
                     <div key={i} style={{display:'flex', gap:'0.5rem', alignItems:'center'}}>
                       <button type="button"
-                        style={{...styles.correctBtn, ...(correctIndex===i ? styles.correctBtnActive : {})}}
+                        style={{...styles.correctBtn,
+                          ...(correctIndex===i ? styles.correctBtnActive : {})}}
                         onClick={() => setCorrectIndex(correctIndex===i ? null : i)}>
                         {correctIndex === i ? '✓' : String.fromCharCode(65+i)}
                       </button>
@@ -233,7 +260,8 @@ export default function TeacherPage() {
                 <div style={styles.policyRow}>
                   {RESULT_OPTIONS.map(o => (
                     <button key={o.value} type="button"
-                      style={{...styles.policyBtn, ...(resultPolicy===o.value ? styles.policyBtnActive : {})}}
+                      style={{...styles.policyBtn,
+                        ...(resultPolicy===o.value ? styles.policyBtnActive : {})}}
                       onClick={() => setResultPolicy(o.value)}>
                       <span style={styles.policyLabel}>{o.label}</span>
                     </button>
@@ -247,7 +275,8 @@ export default function TeacherPage() {
                   <div style={styles.policyRow}>
                     {CORRECT_OPTIONS.map(o => (
                       <button key={o.value} type="button"
-                        style={{...styles.policyBtn, ...(correctPolicy===o.value ? styles.policyBtnActive : {})}}
+                        style={{...styles.policyBtn,
+                          ...(correctPolicy===o.value ? styles.policyBtnActive : {})}}
                         onClick={() => setCorrectPolicy(o.value)}>
                         <span style={styles.policyLabel}>{o.label}</span>
                       </button>
@@ -262,7 +291,8 @@ export default function TeacherPage() {
                   <input className="input" type="number" min={10} max={300}
                     value={duration} onChange={e => setDuration(Number(e.target.value))} />
                 </div>
-                <button type="submit" className="btn btn-primary" style={{padding:'0.65rem 2rem'}}>
+                <button type="submit" className="btn btn-primary"
+                  style={{padding:'0.65rem 2rem'}}>
                   Start Poll →
                 </button>
               </div>
@@ -284,20 +314,17 @@ export default function TeacherPage() {
                     Poll {queue.currentIndex + 1} of {queue.totalPolls}
                   </div>
                 </div>
-                <div style={styles.queueProgress2}>
+                <div style={styles.queueDots}>
                   {Array.from({length: queue.totalPolls}, (_, i) => (
                     <div key={i} style={{
                       ...styles.queueDot,
                       background: i < queue.currentIndex ? 'var(--success)'
-                        : i === queue.currentIndex ? 'var(--accent2)' : 'var(--border)',
+                        : i === queue.currentIndex ? 'var(--accent2)'
+                        : 'var(--border)',
                     }} />
                   ))}
                 </div>
-                <button style={styles.queueExit}
-                  onClick={async () => {
-                    await endPoll(activePoll?.revealResults||false, activePoll?.revealCorrect||false);
-                    await clearQueue();
-                  }}>
+                <button style={styles.queueExit} onClick={handleExitSet}>
                   Exit set
                 </button>
               </div>
@@ -305,7 +332,8 @@ export default function TeacherPage() {
 
             <h2 style={styles.pageTitle}>Dashboard</h2>
 
-            {!activePoll && !isQueued && (
+            {/* Empty state — only when not in a set */}
+            {!displayPoll && (
               <div style={styles.empty}>
                 <span style={{fontSize:'3rem'}}>📋</span>
                 <p>No active poll.{' '}
@@ -320,38 +348,47 @@ export default function TeacherPage() {
               </div>
             )}
 
-            {activePoll && (
+            {/* Poll card — shows active poll OR last poll results when in a set */}
+            {displayPoll && (
               <div style={styles.pollCard}>
-                {/* Header row */}
+                {/* Header */}
                 <div style={styles.timerRow}>
-                  {!pollExpired
+                  {activePoll && !pollExpired
                     ? <TimerRing timeLeft={timeLeft} total={activePoll.duration} />
                     : <div style={styles.expiredBadge}>⏰</div>
                   }
                   <div style={{flex:1}}>
-                    <div style={styles.pollQuestion}>{activePoll.question}</div>
+                    <div style={styles.pollQuestion}>{displayPoll.question}</div>
                     <div style={styles.responseMeta}>
                       {responseCount} / {students.length} responded
-                      {pollExpired && <span style={styles.expiredTag}> · Stopped accepting answers</span>}
+                      {(pollExpired || isPollClosed) &&
+                        <span style={styles.expiredTag}>
+                          {isPollClosed ? ' · Poll ended' : ' · Stopped accepting answers'}
+                        </span>
+                      }
                     </div>
                   </div>
                 </div>
 
                 {/* Results */}
                 <div style={{marginTop:'1.25rem', display:'flex', flexDirection:'column', gap:'0.6rem'}}>
-                  {activePoll.options.map((opt, i) => {
-                    const votes = Object.values(activePoll.responses || {}).filter(v => v === i).length;
-                    const pct = responseCount > 0 ? Math.round(votes / responseCount * 100) : 0;
-                    const isCorrect = activePoll.correctIndex === i;
+                  {displayPoll.options.map((opt, i) => {
+                    const votes = Object.values(displayPoll.responses || {}).filter(v => v === i).length;
+                    const total = Object.keys(displayPoll.responses || {}).length;
+                    const pct = total > 0 ? Math.round(votes / total * 100) : 0;
+                    const isCorrect = displayPoll.correctIndex === i;
                     return (
                       <div key={i} style={styles.optionRow}>
-                        <div style={{...styles.optionLabel, ...(isCorrect ? styles.correctLabel : {})}}>
+                        <div style={{...styles.optionLabel,
+                          ...(isCorrect ? styles.correctLabel : {})}}>
                           {String.fromCharCode(65+i)}{isCorrect ? '✓' : ''}
                         </div>
                         <div style={{flex:1}}>
                           <div style={{display:'flex', justifyContent:'space-between', marginBottom:'0.25rem'}}>
                             <span style={{fontSize:'0.9rem'}}>{opt}</span>
-                            <span style={{fontSize:'0.85rem', color:'var(--muted)'}}>{votes} ({pct}%)</span>
+                            <span style={{fontSize:'0.85rem', color:'var(--muted)'}}>
+                              {votes} ({pct}%)
+                            </span>
                           </div>
                           <div style={styles.barBg}>
                             <div style={{
@@ -370,7 +407,7 @@ export default function TeacherPage() {
                   <div style={{marginTop:'1rem'}}>
                     <label className="label">Responded</label>
                     <div style={{display:'flex', flexWrap:'wrap', gap:'0.4rem'}}>
-                      {Object.keys(activePoll.responses).map(name => (
+                      {Object.keys(displayPoll.responses).map(name => (
                         <span key={name} style={styles.answeredChip}>{name}</span>
                       ))}
                     </div>
@@ -379,9 +416,12 @@ export default function TeacherPage() {
 
                 {/* Controls */}
                 <div style={styles.controls}>
-                  <label className="label" style={{marginBottom:'0.75rem'}}>Student display</label>
+                  <label className="label" style={{marginBottom:'0.75rem'}}>
+                    Student display
+                  </label>
                   <div style={styles.controlGrid}>
-                    {activePoll.resultPolicy === 'manual' && (
+                    {/* Manual toggles only shown when poll is active */}
+                    {activePoll && activePoll.resultPolicy === 'manual' && (
                       <div style={styles.controlItem}>
                         <span style={styles.controlLabel}>Results visible</span>
                         <Toggle
@@ -390,7 +430,7 @@ export default function TeacherPage() {
                         />
                       </div>
                     )}
-                    {activePoll.correctPolicy === 'manual' && activePoll.correctIndex != null && (
+                    {activePoll && activePoll.correctPolicy === 'manual' && activePoll.correctIndex != null && (
                       <div style={styles.controlItem}>
                         <span style={styles.controlLabel}>Correct answer visible</span>
                         <Toggle
@@ -402,27 +442,36 @@ export default function TeacherPage() {
                     <div style={styles.statusSummary}>
                       <StatusPill
                         label="Results"
-                        state={activePoll.resultPolicy === 'never' ? 'never'
-                          : activePoll.resultPolicy === 'on_submit' ? 'auto'
-                          : activePoll.revealResults ? 'shown' : 'hidden'}
+                        state={displayPoll.resultPolicy === 'never' ? 'never'
+                          : displayPoll.resultPolicy === 'on_submit' ? 'auto'
+                          : displayPoll.revealResults ? 'shown' : 'hidden'}
                       />
-                      {activePoll.correctIndex != null && (
+                      {displayPoll.correctIndex != null && (
                         <StatusPill
                           label="Answer"
-                          state={activePoll.correctPolicy === 'never' ? 'never'
-                            : studentSeesCorrect(activePoll) ? 'shown' : 'hidden'}
+                          state={displayPoll.correctPolicy === 'never' ? 'never'
+                            : studentSeesCorrect(displayPoll) ? 'shown' : 'hidden'}
                         />
                       )}
                     </div>
 
+                    {/* Action buttons */}
                     <div style={{marginLeft:'auto', display:'flex', gap:'0.5rem', alignItems:'center'}}>
-                      <button className="btn btn-secondary"
-                        onClick={() => endPoll(activePoll.revealResults, activePoll.revealCorrect)}>
-                        {isQueued ? 'End Poll' : 'Close Poll'}
-                      </button>
+                      {/* End Poll / Close Poll — only shown when poll is active */}
+                      {activePoll && (
+                        <button className="btn btn-secondary"
+                          onClick={() => isQueued
+                            ? closePoll(activePoll.revealResults, activePoll.revealCorrect)
+                            : endPoll(activePoll.revealResults, activePoll.revealCorrect)}>
+                          {isQueued ? 'End Poll' : 'Close Poll'}
+                        </button>
+                      )}
+                      {/* Next Poll / Finish Set — shown when in a set */}
                       {isQueued && (
                         <button className="btn btn-primary" onClick={handleNextPoll}>
-                          {isLastPoll ? 'Finish Set ✓' : `Next Poll → (${queue.currentIndex + 2} of ${queue.totalPolls})`}
+                          {isLastPoll
+                            ? 'Finish Set ✓'
+                            : `Next Poll → (${queue.currentIndex + 2} of ${queue.totalPolls})`}
                         </button>
                       )}
                     </div>
@@ -478,17 +527,19 @@ function TimerRing({ timeLeft, total }) {
   const circ = 2 * Math.PI * radius;
   const progress = total > 0 ? (timeLeft / total) : 0;
   const offset = circ * (1 - progress);
-  const color = progress > 0.4 ? 'var(--accent2)' : progress > 0.15 ? '#f59e0b' : 'var(--accent)';
+  const color = progress > 0.4 ? 'var(--accent2)'
+    : progress > 0.15 ? '#f59e0b' : 'var(--accent)';
   return (
     <div style={{position:'relative', width:72, height:72, flexShrink:0}}>
       <svg width="72" height="72" style={{transform:'rotate(-90deg)'}}>
         <circle cx="36" cy="36" r={radius} fill="none" stroke="var(--cream)" strokeWidth="5"/>
         <circle cx="36" cy="36" r={radius} fill="none" stroke={color} strokeWidth="5"
-          strokeDasharray={circ} strokeDashoffset={offset}
-          strokeLinecap="round" style={{transition:'stroke-dashoffset 0.5s linear, stroke 0.5s'}}/>
+          strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round"
+          style={{transition:'stroke-dashoffset 0.5s linear, stroke 0.5s'}}/>
       </svg>
-      <span style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',
-        fontFamily:'var(--font-display)',fontWeight:700,fontSize:'1.1rem'}}>
+      <span style={{position:'absolute', top:'50%', left:'50%',
+        transform:'translate(-50%,-50%)',
+        fontFamily:'var(--font-display)', fontWeight:700, fontSize:'1.1rem'}}>
         {timeLeft}
       </span>
     </div>
@@ -520,7 +571,7 @@ const styles = {
     fontSize:'0.78rem', color:'rgba(255,255,255,0.8)',
   },
   main: { flex:1, padding:'2rem', overflowY:'auto' },
-  content: { maxWidth:720, margin:'0 auto' },
+  content: { maxWidth:'100%', margin:'0 auto' },
   pageTitle: { fontSize:'1.6rem', marginBottom:'1.5rem' },
   form: { display:'flex', flexDirection:'column', gap:'1.25rem', background:'white', padding:'1.5rem', borderRadius:12, border:'1px solid var(--border)' },
   hint: { fontSize:'0.82rem', color:'var(--muted)', marginBottom:'0.5rem' },
@@ -544,7 +595,7 @@ const styles = {
   queueIcon: { fontSize:'1.4rem' },
   queueName: { fontFamily:'var(--font-display)', fontWeight:700, fontSize:'0.95rem' },
   queueProgress: { color:'var(--accent2)', fontSize:'0.82rem', marginTop:'0.1rem' },
-  queueProgress2: { display:'flex', gap:'0.35rem', alignItems:'center' },
+  queueDots: { display:'flex', gap:'0.35rem', alignItems:'center' },
   queueDot: { width:10, height:10, borderRadius:'50%', transition:'background 0.3s' },
   queueExit: {
     background:'none', border:'1px solid var(--border)', borderRadius:6,
