@@ -38,15 +38,28 @@ export function startPoll({ question, options, correctIndex, duration, resultPol
 }
 
 export async function endPoll(revealResults, revealCorrect) {
-  const snap = await get(ref(db, 'session/activePoll'));
-  const latest = snap.val();
+  const [pollSnap, queueSnap] = await Promise.all([
+    get(ref(db, 'session/activePoll')),
+    get(ref(db, 'session/queue')),
+  ]);
+  const latest = pollSnap.val();
+  const queue  = queueSnap.val();
   if (!latest) return;
-  await set(ref(db, `pollHistory/${latest.id}`), {
+
+  const historyEntry = {
     ...latest,
     revealResults,
     revealCorrect,
     endedAt: Date.now(),
-  });
+  };
+  if (queue) {
+    historyEntry.setId       = queue.setId;
+    historyEntry.setName     = queue.setName;
+    historyEntry.setPosition = queue.currentIndex;
+    historyEntry.sessionKey  = queue.sessionKey;
+  }
+
+  await set(ref(db, `pollHistory/${latest.id}`), historyEntry);
   return remove(ref(db, 'session/activePoll'));
 }
 
@@ -107,7 +120,6 @@ export async function createPollSet({ name, defaults, polls }) {
 }
 
 export function updatePollSet(id, data) {
-  // Use set for the whole document to handle array replacement correctly
   return get(ref(db, `pollSets/${id}`)).then(snap => {
     const existing = snap.val() || {};
     return set(ref(db, `pollSets/${id}`), { ...existing, ...data });
@@ -123,11 +135,12 @@ export function watchPollSet(id, callback) {
   return onValue(r, snap => callback(snap.val()));
 }
 
-// ── Queue (launching a set) ───────────────────────────────────
+// ── Queue ─────────────────────────────────────────────────────
 
 export function launchSet(setId, setName, totalPolls) {
+  const sessionKey = `run_${Date.now()}`;
   return set(ref(db, 'session/queue'), {
-    setId, setName, currentIndex: 0, totalPolls,
+    setId, setName, currentIndex: 0, totalPolls, sessionKey,
   });
 }
 

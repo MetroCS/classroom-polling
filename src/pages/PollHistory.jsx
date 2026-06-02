@@ -14,8 +14,9 @@ export default function PollHistory() {
   const [polls, setPolls]             = useState([]);
   const [attendance, setAttendance]   = useState({});
   const [tab, setTab]                 = useState('polls');
-  const [expanded, setExpanded]       = useState(null);
-  const [confirmDelete, setConfirmDelete] = useState(null); // poll id to confirm
+  const [expanded, setExpanded]       = useState(new Set());
+  const [expandedSets, setExpandedSets] = useState(new Set());
+  const [confirmDelete, setConfirmDelete] = useState(null);
 
   useEffect(() => {
     if (sessionStorage.getItem('historyAuth') === 'true') setAuth(true);
@@ -55,7 +56,62 @@ export default function PollHistory() {
   function handleDelete(pollId) {
     remove(ref(db, `pollHistory/${pollId}`));
     setConfirmDelete(null);
-    setExpanded(null);
+    setExpanded(prev => { const s = new Set(prev); s.delete(pollId); return s; });
+  }
+
+  function togglePoll(pollId) {
+    setExpanded(prev => {
+      const s = new Set(prev);
+      s.has(pollId) ? s.delete(pollId) : s.add(pollId);
+      return s;
+    });
+  }
+
+  function toggleSet(key) {
+    setExpandedSets(prev => {
+      const s = new Set(prev);
+      s.has(key) ? s.delete(key) : s.add(key);
+      return s;
+    });
+  }
+
+  // Group polls: sets (by setId+date) and standalone
+  function groupPolls(polls) {
+    const setGroups = {};   // key: setId_date
+    const standalone = [];
+
+    polls.forEach(poll => {
+      if (poll.setId) {
+        const date = new Date(poll.startedAt).toLocaleDateString();
+        const key = poll.sessionKey || `${poll.setId}_${date}`;
+        if (!setGroups[key]) {
+          setGroups[key] = {
+            key,
+            setId:   poll.setId,
+            setName: poll.setName,
+            date,
+            startedAt: poll.startedAt,
+            polls: [],
+          };
+        }
+        setGroups[key].polls.push(poll);
+      } else {
+        standalone.push(poll);
+      }
+    });
+
+    // Sort polls within each set by position
+    Object.values(setGroups).forEach(g => {
+      g.polls.sort((a, b) => (a.setPosition ?? 0) - (b.setPosition ?? 0));
+    });
+
+    // Merge into a single sorted list of items
+    const items = [
+      ...Object.values(setGroups).map(g => ({ type: 'set', ...g })),
+      ...standalone.map(p => ({ type: 'poll', ...p })),
+    ].sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
+
+    return items;
   }
 
   if (!auth) return (
@@ -84,6 +140,8 @@ export default function PollHistory() {
     </div>
   );
 
+  const grouped = groupPolls(polls);
+
   return (
     <div style={styles.page}>
       <header style={styles.header}>
@@ -100,92 +158,60 @@ export default function PollHistory() {
       <main style={styles.main}>
         {tab === 'polls' && (
           <div className="fade-up">
-            {polls.length === 0 && (
+            {grouped.length === 0 && (
               <div style={styles.empty}>No polls yet. Run your first one in class!</div>
             )}
-            {polls.map((poll, idx) => {
-              const responses = poll.responses || {};
-              const total = Object.keys(responses).length;
-              const isOpen = expanded === idx;
-              const isConfirming = confirmDelete === poll.id;
-
-              return (
-                <div key={poll.id || idx} style={styles.pollCard}>
-                  <div style={styles.pollHeaderRow}>
-                    <button style={styles.pollHeaderBtn}
-                      onClick={() => setExpanded(isOpen ? null : idx)}>
-                      <div>
-                        <div style={styles.pollQ}>{poll.question}</div>
-                        <div style={styles.pollMeta}>
-                          {new Date(poll.startedAt).toLocaleString()} · {total} response{total !== 1 ? 's' : ''}
+            {grouped.map(item => {
+              if (item.type === 'set') {
+                const isOpen = expandedSets.has(item.key);
+                const totalResponses = item.polls.reduce((sum, p) =>
+                  sum + Object.keys(p.responses || {}).length, 0);
+                return (
+                  <div key={item.key} style={styles.setGroup}>
+                    {/* Set header */}
+                    <button style={styles.setGroupHeader}
+                      onClick={() => toggleSet(item.key)}>
+                      <span style={styles.triangle}>{isOpen ? '▼' : '▶'}</span>
+                      <div style={{flex:1}}>
+                        <div style={styles.setGroupName}>
+                          📚 {item.setName}
+                        </div>
+                        <div style={styles.setGroupMeta}>
+                          {item.date} · {item.polls.length} polls · {totalResponses} total responses
                         </div>
                       </div>
-                      <span style={{color:'var(--muted)', marginLeft:'auto'}}>{isOpen ? '▲' : '▼'}</span>
                     </button>
 
-                    {/* Delete controls */}
-                    {!isConfirming ? (
-                      <button style={styles.deleteBtn}
-                        onClick={() => setConfirmDelete(poll.id)}
-                        title="Delete this poll">
-                        🗑
-                      </button>
-                    ) : (
-                      <div style={styles.confirmRow}>
-                        <span style={styles.confirmText}>Delete?</span>
-                        <button className="btn btn-primary"
-                          style={{fontSize:'0.78rem', padding:'0.3rem 0.7rem', background:'#dc2626'}}
-                          onClick={() => handleDelete(poll.id)}>
-                          Yes
-                        </button>
-                        <button className="btn btn-secondary"
-                          style={{fontSize:'0.78rem', padding:'0.3rem 0.7rem'}}
-                          onClick={() => setConfirmDelete(null)}>
-                          Cancel
-                        </button>
+                    {/* Set polls */}
+                    {isOpen && (
+                      <div style={styles.setGroupPolls}>
+                        {item.polls.map(poll => (
+                          <PollRow key={poll.id} poll={poll}
+                            expanded={expanded.has(poll.id)}
+                            confirmDelete={confirmDelete}
+                            onToggle={() => togglePoll(poll.id)}
+                            onDelete={() => handleDelete(poll.id)}
+                            onConfirmDelete={() => setConfirmDelete(poll.id)}
+                            onCancelDelete={() => setConfirmDelete(null)}
+                            positionLabel={`${poll.setPosition + 1}.`}
+                          />
+                        ))}
                       </div>
                     )}
                   </div>
+                );
+              }
 
-                  {isOpen && (
-                    <div style={styles.pollDetails}>
-                      {(poll.options || []).map((opt, i) => {
-                        const votes = Object.values(responses).filter(v => v === i).length;
-                        const pct = total > 0 ? Math.round(votes / total * 100) : 0;
-                        const isCorrect = poll.correctIndex === i;
-                        return (
-                          <div key={i} style={styles.histOpt}>
-                            <div style={{display:'flex', justifyContent:'space-between', marginBottom:4}}>
-                              <span style={{
-                                fontWeight: isCorrect ? 600 : 400,
-                                color: isCorrect ? 'var(--success)' : 'inherit'
-                              }}>
-                                {String.fromCharCode(65+i)}. {opt} {isCorrect && '✓'}
-                              </span>
-                              <span style={{color:'var(--muted)', fontSize:'0.85rem'}}>
-                                {votes} ({pct}%)
-                              </span>
-                            </div>
-                            <div style={styles.barBg}>
-                              <div style={{...styles.barFill, width:`${pct}%`,
-                                background: isCorrect ? 'var(--success)' : 'var(--accent2)'}} />
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {total > 0 && (
-                        <div style={{marginTop:'0.75rem'}}>
-                          <label className="label">Who responded</label>
-                          <div style={{display:'flex', flexWrap:'wrap', gap:'0.35rem'}}>
-                            {Object.keys(responses).map(n => (
-                              <span key={n} style={styles.chip}>{n}</span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+              // Standalone poll
+              return (
+                <PollRow key={item.id} poll={item}
+                  expanded={expanded.has(item.id)}
+                  confirmDelete={confirmDelete}
+                  onToggle={() => togglePoll(item.id)}
+                  onDelete={() => handleDelete(item.id)}
+                  onConfirmDelete={() => setConfirmDelete(item.id)}
+                  onCancelDelete={() => setConfirmDelete(null)}
+                />
               );
             })}
           </div>
@@ -214,6 +240,81 @@ export default function PollHistory() {
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+function PollRow({ poll, expanded, confirmDelete, onToggle, onDelete, onConfirmDelete, onCancelDelete, positionLabel }) {
+  const responses = poll.responses || {};
+  const total = Object.keys(responses).length;
+  const isConfirming = confirmDelete === poll.id;
+
+  return (
+    <div style={styles.pollCard}>
+      <div style={styles.pollHeaderRow}>
+        <button style={styles.pollHeaderBtn} onClick={onToggle}>
+          <span style={styles.triangle}>{expanded ? '▼' : '▶'}</span>
+          <div>
+            <div style={styles.pollQ}>
+              {positionLabel && <span style={styles.posLabel}>{positionLabel} </span>}
+              {poll.question}
+            </div>
+            <div style={styles.pollMeta}>
+              {new Date(poll.startedAt).toLocaleString()} · {total} response{total !== 1 ? 's' : ''}
+            </div>
+          </div>
+        </button>
+        {!isConfirming ? (
+          <button style={styles.deleteBtn} onClick={onConfirmDelete} title="Delete">🗑</button>
+        ) : (
+          <div style={styles.confirmRow}>
+            <span style={styles.confirmText}>Delete?</span>
+            <button className="btn btn-primary"
+              style={{fontSize:'0.78rem', padding:'0.3rem 0.7rem', background:'#dc2626'}}
+              onClick={onDelete}>Yes</button>
+            <button className="btn btn-secondary"
+              style={{fontSize:'0.78rem', padding:'0.3rem 0.7rem'}}
+              onClick={onCancelDelete}>Cancel</button>
+          </div>
+        )}
+      </div>
+
+      {expanded && (
+        <div style={styles.pollDetails}>
+          {(poll.options || []).map((opt, i) => {
+            const votes = Object.values(responses).filter(v => v === i).length;
+            const pct = total > 0 ? Math.round(votes / total * 100) : 0;
+            const isCorrect = poll.correctIndex === i;
+            return (
+              <div key={i} style={styles.histOpt}>
+                <div style={{display:'flex', justifyContent:'space-between', marginBottom:4}}>
+                  <span style={{
+                    fontWeight: isCorrect ? 600 : 400,
+                    color: isCorrect ? 'var(--success)' : 'inherit',
+                  }}>
+                    {String.fromCharCode(65+i)}. {opt} {isCorrect && '✓'}
+                  </span>
+                  <span style={{color:'var(--muted)', fontSize:'0.85rem'}}>{votes} ({pct}%)</span>
+                </div>
+                <div style={styles.barBg}>
+                  <div style={{...styles.barFill, width:`${pct}%`,
+                    background: isCorrect ? 'var(--success)' : 'var(--accent2)'}} />
+                </div>
+              </div>
+            );
+          })}
+          {total > 0 && (
+            <div style={{marginTop:'0.75rem'}}>
+              <label className="label">Who responded</label>
+              <div style={{display:'flex', flexWrap:'wrap', gap:'0.35rem'}}>
+                {Object.keys(responses).map(n => (
+                  <span key={n} style={styles.chip}>{n}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -252,34 +353,42 @@ const styles = {
   tabActive: { background:'white', color:'var(--ink)', fontWeight:600, boxShadow:'0 1px 3px rgba(0,0,0,0.1)' },
   main: { maxWidth:720, margin:'0 auto', padding:'1.5rem 1rem' },
   empty: { textAlign:'center', color:'var(--muted)', padding:'3rem', fontSize:'0.95rem' },
+  setGroup: {
+    background:'white', borderRadius:12, border:'1.5px solid var(--accent2)',
+    marginBottom:'0.75rem', overflow:'hidden',
+  },
+  setGroupHeader: {
+    display:'flex', alignItems:'center', gap:'0.75rem',
+    padding:'0.85rem 1rem', background:'none', border:'none',
+    cursor:'pointer', textAlign:'left', width:'100%',
+    borderBottom:'1px solid var(--cream)',
+  },
+  setGroupName: { fontFamily:'var(--font-display)', fontWeight:700, fontSize:'0.95rem' },
+  setGroupMeta: { color:'var(--muted)', fontSize:'0.8rem', marginTop:'0.2rem' },
+  setGroupPolls: { padding:'0.5rem 0.75rem', display:'flex', flexDirection:'column', gap:'0.4rem' },
+  triangle: { fontSize:'0.7rem', color:'var(--muted)', flexShrink:0 },
   pollCard: {
     background:'white', borderRadius:12, border:'1px solid var(--border)',
     marginBottom:'0.75rem', overflow:'hidden',
   },
   pollHeaderRow: {
-    display:'flex', alignItems:'center', gap:'0.5rem',
-    padding:'0.75rem 1rem', borderBottom:'1px solid transparent',
+    display:'flex', alignItems:'center', gap:'0.5rem', padding:'0.75rem 1rem',
   },
   pollHeaderBtn: {
-    display:'flex', alignItems:'center', gap:'0.75rem',
+    display:'flex', alignItems:'center', gap:'0.6rem',
     background:'none', border:'none', cursor:'pointer', textAlign:'left', flex:1,
     padding:'0.25rem 0',
   },
+  posLabel: { color:'var(--muted)', fontWeight:400 },
   pollQ: { fontFamily:'var(--font-display)', fontWeight:600, fontSize:'0.95rem' },
   pollMeta: { color:'var(--muted)', fontSize:'0.8rem', marginTop:'0.2rem' },
   deleteBtn: {
     background:'none', border:'none', cursor:'pointer', fontSize:'1.1rem',
-    padding:'0.25rem 0.4rem', borderRadius:6, flexShrink:0,
-    opacity:0.5, transition:'opacity 0.15s',
+    padding:'0.25rem 0.4rem', borderRadius:6, opacity:0.5,
   },
-  confirmRow: {
-    display:'flex', alignItems:'center', gap:'0.4rem', flexShrink:0,
-  },
+  confirmRow: { display:'flex', alignItems:'center', gap:'0.4rem' },
   confirmText: { fontSize:'0.82rem', color:'var(--muted)', whiteSpace:'nowrap' },
-  pollDetails: {
-    padding:'0.75rem 1rem 1rem',
-    borderTop:'1px solid var(--border)',
-  },
+  pollDetails: { padding:'0.75rem 1rem 1rem', borderTop:'1px solid var(--border)' },
   histOpt: { marginBottom:'0.6rem' },
   barBg: { height:6, borderRadius:3, background:'var(--cream)', overflow:'hidden' },
   barFill: { height:'100%', borderRadius:3, transition:'width 0.3s' },
