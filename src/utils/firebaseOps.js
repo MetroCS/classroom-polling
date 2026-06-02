@@ -85,29 +85,33 @@ export function watchPollHistory(callback) {
     callback(list);
   });
 }
+
 // ── Poll Sets ─────────────────────────────────────────────────
 
 export function watchPollSets(callback) {
   const r = ref(db, 'pollSets');
   return onValue(r, snap => {
     const val = snap.val() || {};
-    const list = Object.entries(val).map(([id, set]) => ({ id, ...set }))
+    const list = Object.entries(val).map(([id, s]) => ({ id, ...s }))
       .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     callback(list);
   });
 }
 
-
 export async function createPollSet({ name, defaults, polls }) {
   const id = `set_${Date.now()}`;
   await set(ref(db, `pollSets/${id}`), {
-    id, name, createdAt: Date.now(), defaults, polls,
+    id, name, createdAt: Date.now(), defaults, polls: polls || [],
   });
   return id;
 }
 
 export function updatePollSet(id, data) {
-  return update(ref(db, `pollSets/${id}`), data);
+  // Use set for the whole document to handle array replacement correctly
+  return get(ref(db, `pollSets/${id}`)).then(snap => {
+    const existing = snap.val() || {};
+    return set(ref(db, `pollSets/${id}`), { ...existing, ...data });
+  });
 }
 
 export function deletePollSet(id) {
@@ -125,6 +129,10 @@ export function launchSet(setId, setName, totalPolls) {
   return set(ref(db, 'session/queue'), {
     setId, setName, currentIndex: 0, totalPolls,
   });
+}
+
+export function advanceQueue(currentIndex) {
+  return update(ref(db, 'session/queue'), { currentIndex });
 }
 
 export function clearQueue() {

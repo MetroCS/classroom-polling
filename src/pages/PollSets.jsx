@@ -22,41 +22,77 @@ const CORRECT_OPTIONS = [
 
 export default function PollSets() {
   const navigate = useNavigate();
-  const [sets, setSets]           = useState([]);
-  const [view, setView]           = useState('list'); // 'list' | 'create'
+  const [sets, setSets]               = useState([]);
+  const [view, setView]               = useState('list');
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [saving, setSaving]           = useState(false);
+  const [saveErr, setSaveErr]         = useState('');
 
-  // Create form state
-  const [name, setName]           = useState('');
-  const [text, setText]           = useState('');
-  const [defaults, setDefaults]   = useState(DEFAULTS);
-  const [preview, setPreview]     = useState(null);
-  const [parseErr, setParseErr]   = useState('');
-  const [createMode, setCreateMode] = useState('text'); // 'text' | 'manual'
+  // Shared create form state
+  const [name, setName]               = useState('');
+  const [defaults, setDefaults]       = useState(DEFAULTS);
+  const [createMode, setCreateMode]   = useState('text');
+
+  // Text mode state
+  const [text, setText]               = useState('');
+  const [preview, setPreview]         = useState(null);
+  const [parseErr, setParseErr]       = useState('');
 
   useEffect(() => {
     if (sessionStorage.getItem('role') !== 'teacher') navigate('/');
     return watchPollSets(setSets);
   }, []);
 
+  function resetForm() {
+    setName(''); setDefaults(DEFAULTS); setCreateMode('text');
+    setText(''); setPreview(null); setParseErr(''); setSaveErr('');
+  }
+
   function handlePreview() {
     setParseErr('');
     try {
       const polls = parsePollText(text, defaults);
-      if (polls.length === 0) { setParseErr('No polls found. Check your formatting.'); return; }
+      if (polls.length === 0) {
+        setParseErr('No polls found. Check your formatting.');
+        return;
+      }
       setPreview(polls);
     } catch(e) {
       setParseErr(e.message);
     }
   }
 
-  async function handleSave() {
-    if (!name.trim()) { setParseErr('Please enter a set name.'); return; }
-    const polls = preview || [];
-    if (polls.length === 0) { setParseErr('Preview your polls first.'); return; }
-    await createPollSet({ name: name.trim(), defaults, polls });
-    setName(''); setText(''); setPreview(null); setParseErr('');
-    setView('list');
+  async function handleSaveText() {
+    setSaveErr('');
+    if (!name.trim()) { setSaveErr('Please enter a set name.'); return; }
+    if (!preview || preview.length === 0) { setSaveErr('Preview your polls first.'); return; }
+    setSaving(true);
+    try {
+      const newId = await createPollSet({ name: name.trim(), defaults, polls: preview });
+      resetForm();
+      setView('list');
+      navigate(`/pollsets/${newId}`);
+    } catch(e) {
+      setSaveErr('Error saving: ' + e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveManual() {
+    setSaveErr('');
+    if (!name.trim()) { setSaveErr('Please enter a set name.'); return; }
+    setSaving(true);
+    try {
+      const newId = await createPollSet({ name: name.trim(), defaults, polls: [] });
+      resetForm();
+      setView('list');
+      navigate(`/pollsets/${newId}`);
+    } catch(e) {
+      setSaveErr('Error saving: ' + e.message);
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleDelete(id) {
@@ -75,7 +111,8 @@ export default function PollSets() {
           </button>
         )}
         {view === 'create' && (
-          <button className="btn btn-secondary" onClick={() => { setView('list'); setPreview(null); setParseErr(''); }}>
+          <button className="btn btn-secondary"
+            onClick={() => { setView('list'); resetForm(); }}>
             Cancel
           </button>
         )}
@@ -137,6 +174,7 @@ export default function PollSets() {
           <div className="fade-up" style={styles.createForm}>
             <h2 style={styles.sectionTitle}>New Poll Set</h2>
 
+            {/* Name — always visible */}
             <div>
               <label className="label">Set Name</label>
               <input className="input" placeholder="e.g. Chapter 5 Review"
@@ -147,24 +185,23 @@ export default function PollSets() {
             <div style={styles.defaultsBox}>
               <label className="label">Default settings for all polls in this set</label>
               <div style={styles.defaultsRow}>
-                <div style={{flex:1}}>
+                <div>
                   <label className="label" style={{fontSize:'0.72rem'}}>Duration (seconds)</label>
                   <input className="input" type="number" min={10} max={300}
                     value={defaults.duration}
-                    onChange={e => setDefaults({...defaults, duration: Number(e.target.value)})} />
+                    onChange={e => setDefaults({...defaults, duration: Number(e.target.value)})}
+                    style={{width:100}} />
                 </div>
-                <div style={{flex:2}}>
+                <div style={{flex:1}}>
                   <label className="label" style={{fontSize:'0.72rem'}}>Show results to students</label>
-                  <select className="input"
-                    value={defaults.resultPolicy}
+                  <select className="input" value={defaults.resultPolicy}
                     onChange={e => setDefaults({...defaults, resultPolicy: e.target.value})}>
                     {RESULT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
-                <div style={{flex:2}}>
+                <div style={{flex:1}}>
                   <label className="label" style={{fontSize:'0.72rem'}}>Reveal correct answer</label>
-                  <select className="input"
-                    value={defaults.correctPolicy}
+                  <select className="input" value={defaults.correctPolicy}
                     onChange={e => setDefaults({...defaults, correctPolicy: e.target.value})}>
                     {CORRECT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
@@ -172,22 +209,33 @@ export default function PollSets() {
               </div>
             </div>
 
-            {/* Input mode tabs */}
+            {/* Mode tabs */}
             <div>
               <div style={styles.modeTabs}>
-                <button style={{...styles.modeTab, ...(createMode==='text' ? styles.modeTabActive : {})}}
-                  onClick={() => setCreateMode('text')}>Paste text</button>
-                <button style={{...styles.modeTab, ...(createMode==='manual' ? styles.modeTabActive : {})}}
-                  onClick={() => setCreateMode('manual')}>Build manually</button>
+                <button
+                  style={{...styles.modeTab, ...(createMode==='text' ? styles.modeTabActive : {})}}
+                  onClick={() => setCreateMode('text')}>
+                  Paste text
+                </button>
+                <button
+                  style={{...styles.modeTab, ...(createMode==='manual' ? styles.modeTabActive : {})}}
+                  onClick={() => setCreateMode('manual')}>
+                  Build manually
+                </button>
               </div>
 
+              {/* Text mode */}
               {createMode === 'text' && (
-                <div>
+                <div style={{display:'flex', flexDirection:'column', gap:'0.75rem'}}>
                   <textarea className="input" rows={14}
                     placeholder={`Q: What is photosynthesis?\n\n* A. Converts sunlight into energy\n  B. Breaks down glucose\n  C. Absorbs water through roots\n  D. Releases CO2\n---\nQ: Which organelle contains chlorophyll?\nduration: 90\n\n  A. Mitochondria\n* B. Chloroplast\n  C. Nucleus\n  D. Vacuole`}
-                    value={text} onChange={e => { setText(e.target.value); setPreview(null); }}
-                    style={{fontFamily:"monospace", fontSize:"0.85rem", resize:"vertical", minHeight:"320px", width:"100%", boxSizing:"border-box"}} />
-                  <div style={{display:'flex', gap:'0.75rem', marginTop:'0.75rem', alignItems:'center'}}>
+                    value={text}
+                    onChange={e => { setText(e.target.value); setPreview(null); setParseErr(''); }}
+                    style={{
+                      fontFamily:'monospace', fontSize:'0.85rem',
+                      resize:'vertical', minHeight:'320px', width:'100%',
+                    }} />
+                  <div style={{display:'flex', gap:'0.75rem', alignItems:'center'}}>
                     <button className="btn btn-secondary" onClick={handlePreview}>
                       Preview →
                     </button>
@@ -196,31 +244,30 @@ export default function PollSets() {
                 </div>
               )}
 
+              {/* Manual mode */}
               {createMode === 'manual' && (
-                <div style={styles.manualNote}>
-                  After saving the set, you can add and edit polls individually in the set detail view.
-                  <button className="btn btn-primary" style={{marginTop:'0.75rem'}}
-                    onClick={async () => {
-                      if (!name.trim()) { setParseErr('Please enter a set name first.'); return; }
-                      const id = await createPollSet({ name: name.trim(), defaults, polls: [] });
-                      navigate(`/pollsets/${id}`);
-                    }}>
-                    Create empty set →
+                <div style={styles.manualBox}>
+                  <p>The set will be created empty. You can add and edit polls one by one in the set detail view.</p>
+                  {saveErr && <p style={styles.err}>{saveErr}</p>}
+                  <button className="btn btn-primary"
+                    style={{marginTop:'0.5rem'}}
+                    onClick={handleSaveManual}
+                    disabled={saving}>
+                    {saving ? 'Creating…' : 'Create empty set →'}
                   </button>
-                  {parseErr && <p style={styles.err}>{parseErr}</p>}
                 </div>
               )}
             </div>
 
             {/* Preview */}
-            {preview && (
+            {createMode === 'text' && preview && (
               <div style={styles.previewBox}>
-                <label className="label">Preview — {preview.length} poll{preview.length !== 1 ? 's' : ''} found</label>
+                <label className="label">
+                  Preview — {preview.length} poll{preview.length !== 1 ? 's' : ''} found
+                </label>
                 {preview.map((poll, i) => (
                   <div key={i} style={styles.previewPoll}>
-                    <div style={styles.previewQ}>
-                      {i+1}. {poll.question}
-                    </div>
+                    <div style={styles.previewQ}>{i+1}. {poll.question}</div>
                     <div style={styles.previewOptions}>
                       {poll.options.map((opt, j) => (
                         <div key={j} style={{
@@ -233,14 +280,16 @@ export default function PollSets() {
                     </div>
                     <div style={styles.previewMeta}>
                       {poll.duration}s ·
-                      Results: {RESULT_OPTIONS.find(o=>o.value===poll.resultPolicy)?.label} ·
-                      Answer: {CORRECT_OPTIONS.find(o=>o.value===poll.correctPolicy)?.label}
+                      Results: {RESULT_OPTIONS.find(o => o.value===poll.resultPolicy)?.label} ·
+                      Answer: {CORRECT_OPTIONS.find(o => o.value===poll.correctPolicy)?.label}
                     </div>
                   </div>
                 ))}
-                <button className="btn btn-primary" style={{marginTop:'0.75rem'}}
-                  onClick={handleSave}>
-                  Save Set →
+                {saveErr && <p style={styles.err}>{saveErr}</p>}
+                <button className="btn btn-primary"
+                  onClick={handleSaveText}
+                  disabled={saving}>
+                  {saving ? 'Saving…' : 'Save Set →'}
                 </button>
               </div>
             )}
@@ -266,20 +315,19 @@ const styles = {
   },
   setCard: {
     background:'white', borderRadius:12, border:'1px solid var(--border)',
-    marginBottom:'0.75rem', display:'flex', alignItems:'center',
-    overflow:'hidden',
+    marginBottom:'0.75rem', display:'flex', alignItems:'center', overflow:'hidden',
   },
   setCardBtn: {
     display:'flex', alignItems:'center', justifyContent:'space-between',
-    flex:1, padding:'1rem', background:'none', border:'none', cursor:'pointer',
-    textAlign:'left',
+    flex:1, padding:'1rem', background:'none', border:'none',
+    cursor:'pointer', textAlign:'left',
   },
   setName: { fontFamily:'var(--font-display)', fontWeight:600, fontSize:'1rem' },
   setMeta: { color:'var(--muted)', fontSize:'0.8rem', marginTop:'0.2rem' },
   setActions: { padding:'0 0.75rem', display:'flex', alignItems:'center', gap:'0.4rem' },
   deleteBtn: {
-    background:'none', border:'none', cursor:'pointer', fontSize:'1.1rem',
-    padding:'0.25rem 0.4rem', borderRadius:6, opacity:0.5,
+    background:'none', border:'none', cursor:'pointer',
+    fontSize:'1.1rem', padding:'0.25rem 0.4rem', borderRadius:6, opacity:0.5,
   },
   confirmRow: { display:'flex', alignItems:'center', gap:'0.4rem' },
   confirmText: { fontSize:'0.82rem', color:'var(--muted)', whiteSpace:'nowrap' },
@@ -289,17 +337,23 @@ const styles = {
     background:'white', borderRadius:12, border:'1px solid var(--border)',
     padding:'1rem', display:'flex', flexDirection:'column', gap:'0.75rem',
   },
-  defaultsRow: { display:'flex', gap:'0.75rem', flexWrap:'wrap' },
-  modeTabs: { display:'flex', gap:'0.25rem', background:'var(--cream)', borderRadius:8, padding:'0.25rem', marginBottom:'0.75rem', width:'fit-content' },
-  modeTab: {
-    background:'none', border:'none', padding:'0.35rem 0.85rem', borderRadius:6,
-    cursor:'pointer', fontSize:'0.9rem', color:'var(--muted)',
+  defaultsRow: { display:'flex', gap:'0.75rem', flexWrap:'wrap', alignItems:'flex-end' },
+  modeTabs: {
+    display:'flex', gap:'0.25rem', background:'var(--cream)',
+    borderRadius:8, padding:'0.25rem', marginBottom:'0.75rem', width:'fit-content',
   },
-  modeTabActive: { background:'white', color:'var(--ink)', fontWeight:600, boxShadow:'0 1px 3px rgba(0,0,0,0.1)' },
-  manualNote: {
+  modeTab: {
+    background:'none', border:'none', padding:'0.35rem 0.85rem',
+    borderRadius:6, cursor:'pointer', fontSize:'0.9rem', color:'var(--muted)',
+  },
+  modeTabActive: {
+    background:'white', color:'var(--ink)', fontWeight:600,
+    boxShadow:'0 1px 3px rgba(0,0,0,0.1)',
+  },
+  manualBox: {
     background:'white', borderRadius:12, border:'1px solid var(--border)',
     padding:'1.25rem', color:'var(--muted)', fontSize:'0.9rem',
-    display:'flex', flexDirection:'column', alignItems:'flex-start', gap:'0.5rem',
+    display:'flex', flexDirection:'column', gap:'0.5rem',
   },
   previewBox: {
     background:'white', borderRadius:12, border:'1px solid var(--border)',
