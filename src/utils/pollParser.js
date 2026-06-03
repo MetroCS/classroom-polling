@@ -1,8 +1,20 @@
 // Parses plain text poll format into poll objects.
-// Polls are separated by --- on its own line.
-// Q: starts a question (continuation lines indented)
-// A/B/C... start options (* prefix = correct answer)
-// Per-poll overrides: duration: 90, results: manual, correct: never
+//
+// FORMAT RULES:
+// - Polls are separated by --- on its own line
+// - Q: starts the question; question text continues until a blank line
+// - A blank line separates the question from the answer options (required)
+// - Options start with a letter and period/paren: A. B) etc.
+// - Prefix * marks the correct answer: * A. or *A.
+// - Per-poll overrides before Q:: duration: 90, results: manual, correct: never
+//
+// EXAMPLE:
+//   Q: What is photosynthesis?
+//   It converts sunlight into energy.
+//
+//   * A. Converts sunlight into energy
+//     B. Breaks down glucose
+//     C. Absorbs water
 
 export function parsePollText(text, defaults = {}) {
   const {
@@ -24,6 +36,7 @@ export function parsePollText(text, defaults = {}) {
     let correctPolicy = defaultCorrectPolicy;
 
     let i = 0;
+
     // Parse per-poll metadata lines at top (before Q:)
     while (i < lines.length) {
       const line = lines[i];
@@ -36,35 +49,43 @@ export function parsePollText(text, defaults = {}) {
       break;
     }
 
-    // Parse Q: block
+    // Find Q: line
+    while (i < lines.length && !/^Q:/i.test(lines[i])) i++;
+    if (i >= lines.length) continue; // no question found
+
+    // Parse question — everything from Q: until the first blank line
+    question = lines[i].replace(/^Q:\s*/i, '').trim();
+    i++;
+    while (i < lines.length && lines[i].trim() !== '') {
+      question += '\n' + lines[i].trim();
+      i++;
+    }
+
+    // Skip the blank line(s) separating question from options
+    while (i < lines.length && lines[i].trim() === '') i++;
+
+    // Parse options — each starts with optional * then letter + . or )
     while (i < lines.length) {
       const line = lines[i];
-      if (/^Q:/i.test(line)) {
-        question = line.replace(/^Q:\s*/i, '').trim();
-        i++;
-        // Continuation lines (indented)
-        while (i < lines.length && /^\s+/.test(lines[i]) && !/^\s*\*?\s*[A-Z][\.\)]/i.test(lines[i])) {
-          question += '\n' + lines[i].trim();
-          i++;
-        }
-        continue;
-      }
-      // Option lines: optional * then optional letter then . or ) then text
-      const optMatch = line.match(/^(\*?)\s*(?:[A-Za-z][\.\)])?\s*(.+)/);
-      if (optMatch && question) {
-        const isCorrect = optMatch[1] === '*';
-        let optText = optMatch[2].trim();
-        i++;
-        // Continuation lines for option (indented, not starting a new option)
-        while (i < lines.length && /^\s+/.test(lines[i]) && !/^\s*\*?\s*[A-Z][\.\)]/i.test(lines[i])) {
-          optText += '\n' + lines[i].trim();
-          i++;
-        }
-        if (isCorrect) correctIndex = options.length;
-        options.push(optText);
-        continue;
-      }
+      if (line.trim() === '') { i++; continue; } // skip blank lines between options
+
+      const optMatch = line.match(/^(\*?)\s*[A-Za-z][\.\)]\s*(.+)/);
+      if (!optMatch) { i++; continue; } // skip unrecognized lines
+
+      const isCorrect = optMatch[1] === '*';
+      let optText = optMatch[2].trim();
       i++;
+
+      // Continuation lines for option: indented, until blank line or next option
+      while (i < lines.length
+        && lines[i].trim() !== ''
+        && !/^\*?\s*[A-Za-z][\.\)]\s+/.test(lines[i])) {
+        optText += '\n' + lines[i].trim();
+        i++;
+      }
+
+      if (isCorrect) correctIndex = options.length;
+      options.push(optText);
     }
 
     if (!question || options.length < 2) continue;
@@ -94,12 +115,11 @@ function normalizePolicy(val, type) {
 export function pollsToText(polls, defaults = {}) {
   return polls.map(poll => {
     const lines = [];
-    // Per-poll overrides (only write if different from defaults)
     if (poll.duration !== defaults.duration) lines.push(`duration: ${poll.duration}`);
     if (poll.resultPolicy !== defaults.resultPolicy) lines.push(`results: ${poll.resultPolicy}`);
     if (poll.correctPolicy !== defaults.correctPolicy) lines.push(`correct: ${poll.correctPolicy}`);
     lines.push(`Q: ${poll.question}`);
-    lines.push('');
+    lines.push(''); // blank line separating question from options (required)
     poll.options.forEach((opt, i) => {
       const prefix = poll.correctIndex === i ? '* ' : '  ';
       lines.push(`${prefix}${String.fromCharCode(65+i)}. ${opt}`);
