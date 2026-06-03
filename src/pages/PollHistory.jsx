@@ -22,7 +22,7 @@ export default function PollHistory() {
   const [copyFeedback, setCopyFeedback] = useState({}); // key -> true
 
   useEffect(() => {
-    if (sessionStorage.getItem('historyAuth') === 'true') setAuth(true);
+    if (localStorage.getItem("historyAuth") === 'true' || localStorage.getItem("role") === 'teacher') setAuth(true);
   }, []);
 
   useEffect(() => {
@@ -48,7 +48,7 @@ export default function PollHistory() {
   function handleLogin(e) {
     e.preventDefault();
     if (pw === HISTORY_PASSWORD) {
-      sessionStorage.setItem('historyAuth', 'true');
+      localStorage.setItem("historyAuth", "true");
       setAuth(true);
     } else {
       setErr('Incorrect password.');

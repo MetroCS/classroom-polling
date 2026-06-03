@@ -38,7 +38,7 @@ export default function TeacherPage() {
   const [correctPolicy, setCorrectPolicy] = useState('with_results');
 
   useEffect(() => {
-    if (sessionStorage.getItem('role') !== 'teacher') navigate('/');
+    if (localStorage.getItem("role") !== 'teacher') navigate('/');
   }, []);
 
   useEffect(() => {
@@ -206,7 +206,7 @@ export default function TeacherPage() {
           </div>
           <button className="btn btn-secondary"
             style={{width:'100%', marginTop:'auto', fontSize:'0.8rem'}}
-            onClick={() => { sessionStorage.clear(); navigate('/'); }}>
+            onClick={() => { localStorage.removeItem("role"); localStorage.removeItem("historyAuth"); navigate('/'); }}>
             Exit
           </button>
         </div>

@@ -12,7 +12,7 @@ export default function RoleSelector() {
   function handleTeacherSubmit(e) {
     e.preventDefault();
     if (pw === TEACHER_PASSWORD) {
-      sessionStorage.setItem('role', 'teacher');
+      localStorage.setItem("role", "teacher");
       navigate('/teacher');
     } else {
       setErr('Incorrect password.');
