@@ -4,7 +4,7 @@ import {
 } from 'firebase/database';
 
 export function joinSession(name) {
-  const date = new Date().toLocaleDateString('en-CA');
+  const date = new Date().toLocaleDateString('en-CA'); // Local date from student's browser clock
   set(ref(db, `session/students/${name}`), { joinedAt: serverTimestamp(), date });
   return set(ref(db, `sessionStudents/${date}_${name}`), { name, date, joinedAt: serverTimestamp() });
 }
