@@ -13,6 +13,7 @@ All data stays in your own Firebase project.
 - Control when students see results and whether the correct answer (if any) is revealed
 - Step through a poll set sequentially at your own pace
 - View poll history and attendance, grouped by poll set and session
+- CSV export of poll results (per-poll and per-session)
 - Delete individual polls from history
 - Password-protected teacher and history access
 
@@ -30,7 +31,11 @@ All data stays in your own Firebase project.
 ## Plain text poll format
 
 Individual polls are separated by `---`.
-The correct answer is marked with `*`.
+The first prompt line begins with `Q:`.
+A blank line is required to separate the prompt from the block of answers.
+(This allows multi-line prompts.)
+The correct answer is marked with a `*` prefix.
+Each answer has a letter followed by `.`.
 Per-poll overrides go before the `Q:` line.
 
 ```
@@ -41,9 +46,9 @@ Q: What is photosynthesis?
   C. Absorbs water through roots
   D. Releases CO2
 ---
-Q: Which organelle contains chlorophyll?
 duration: 90
 correct: manual
+Q: Which organelle contains chlorophyll?
 
   A. Mitochondria
 * B. Chloroplast
@@ -55,9 +60,9 @@ correct: manual
 
 | Key | Values | Default |
 |-----|--------|---------|
-| `duration` | seconds, e.g. `30`, `90` | set default |
-| `results` | `submit`, `manual`, `never` | set default |
-| `correct` | `results`, `manual`, `never` | set default |
+| `duration` | seconds, e.g. `30`, `90` | poll set default |
+| `results` | `submit`, `manual`, `never` | poll set default |
+| `correct` | `results`, `manual`, `never` | poll set default |
 
 ### Display policy values
 
@@ -87,6 +92,7 @@ Click **Fork** at the top right of this page. Clone your fork:
 ```bash
 git clone https://github.com/YOUR_USERNAME/classroom-polling.git
 cd classroom-polling
+git remote add upstream https://github.com/MetroCS/classroom-polling.git
 npm install
 ```
 
@@ -203,6 +209,13 @@ git subtree push --prefix dist origin gh-pages
 git push origin main
 ```
 
+### Updating your fork to the newest version
+```bash
+git fetch upstream
+git merge upstream/main
+```
+
+
 ## Usage
 
 ### Running a poll
@@ -211,7 +224,7 @@ git push origin main
 2. Click **New Poll** → enter question and options → click **Start Poll**
 3. Share your app URL with students — they click **I'm a Student**, enter their name, and wait
 4. Students see the poll instantly; results update live on your dashboard
-5. Click **End Poll** to stop accepting answers, then **Close Poll** when done
+5. For standalone polls, click **Close Poll** when done. When running a poll set, click **End Poll** to stop accepting answers while staying in the set, then **Next Poll* to advance
 
 ### Running a poll set
 
@@ -245,6 +258,7 @@ classroom-polling/
 │   ├── utils/
 │   │   ├── firebaseOps.js    All database read/write operations
 │   │   └── pollParser.js     Plain text poll format parser
+│   │   └── csvExport.js      CSV export utilities
 │   ├── pages/
 │   │   ├── RoleSelector.jsx  Landing page
 │   │   ├── TeacherPage.jsx   Teacher dashboard
@@ -274,14 +288,11 @@ The Firebase Spark (free) plan is sufficient for typical classroom use:
 ## Known limitations
 
 - Teacher password is a single shared secret; not suitable for multiple instructors sharing one instance
-- No built-in export yet (CSV export is planned)
 - Code formatting in questions is plain text only (markdown support planned)
 - Student names are self-reported and not authenticated
 
 ## Planned features
 
-- CSV export of poll results for gradebook use
-- Per-student response view grouped by answer chosen
 - Code block rendering in questions and options
 - Student self-paced mode for poll sets
 
