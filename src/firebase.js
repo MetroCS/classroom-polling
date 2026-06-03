@@ -2,14 +2,16 @@ import { initializeApp } from 'firebase/app';
 import { getDatabase } from 'firebase/database';
 import { getAuth, signInAnonymously } from 'firebase/auth';
 
+// Configuration comes from .env.local — never commit real values to git.
+// Copy .env.example to .env.local and fill in your Firebase project details.
 const firebaseConfig = {
-  apiKey: "AIzaSyBiZSV4Z_3-L0z8RP5yY_2xXlw5fKOy2jc",
-  authDomain: "classroom-polling-dd344.firebaseapp.com",
-  databaseURL: "https://classroom-polling-dd344-default-rtdb.firebaseio.com",
-  projectId: "classroom-polling-dd344",
-  storageBucket: "classroom-polling-dd344.firebasestorage.app",
-  messagingSenderId: "528103899828",
-  appId: "1:528103899828:web:f74274640de611a61d0de1"
+  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  databaseURL:       import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
 const app = initializeApp(firebaseConfig);

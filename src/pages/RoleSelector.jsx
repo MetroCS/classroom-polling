@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const TEACHER_PASSWORD = 'teach123';
+const TEACHER_PASSWORD = import.meta.env.VITE_TEACHER_PASSWORD || 'changeme';
 
 export default function RoleSelector() {
   const navigate = useNavigate();

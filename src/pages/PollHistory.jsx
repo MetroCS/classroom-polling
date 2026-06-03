@@ -4,7 +4,7 @@ import { watchPollHistory } from '../utils/firebaseOps';
 import { db } from '../firebase';
 import { ref, onValue, remove } from 'firebase/database';
 
-const HISTORY_PASSWORD = 'teach123';
+const HISTORY_PASSWORD = import.meta.env.VITE_TEACHER_PASSWORD || 'changeme';
 
 export default function PollHistory() {
   const navigate = useNavigate();
