@@ -39,7 +39,7 @@ export default function PollSets() {
   const [parseErr, setParseErr]       = useState('');
 
   useEffect(() => {
-    if (sessionStorage.getItem('role') !== 'teacher') navigate('/');
+    if (localStorage.getItem('role') !== 'teacher') navigate('/');
     return watchPollSets(setSets);
   }, []);
 

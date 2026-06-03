@@ -29,7 +29,7 @@ export default function PollSetDetail() {
   const [nameValue, setNameValue]   = useState('');
 
   useEffect(() => {
-    if (sessionStorage.getItem('role') !== 'teacher') navigate('/');
+    if (localStorage.getItem('role') !== 'teacher') navigate('/');
     return watchPollSet(id, s => {
       if (!s) return;
       setPollSet(s);

@@ -18,6 +18,7 @@ export default function PollHistory() {
   const [expanded, setExpanded]       = useState(new Set());
   const [expandedSets, setExpandedSets] = useState(new Set());
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [confirmDeleteSet, setConfirmDeleteSet] = useState(null); // set key
   const [pollView, setPollView]       = useState({}); // pollId -> 'summary' | 'students'
   const [copyFeedback, setCopyFeedback] = useState({}); // key -> true
 
@@ -60,6 +61,12 @@ export default function PollHistory() {
     remove(ref(db, `pollHistory/${pollId}`));
     setConfirmDelete(null);
     setExpanded(prev => { const s = new Set(prev); s.delete(pollId); return s; });
+  }
+
+  function handleDeleteSet(key, polls) {
+    polls.forEach(poll => remove(ref(db, `pollHistory/${poll.id}`)));
+    setConfirmDeleteSet(null);
+    setExpandedSets(prev => { const s = new Set(prev); s.delete(key); return s; });
   }
 
   function togglePoll(pollId) {
@@ -182,27 +189,46 @@ export default function PollHistory() {
                   sum + Object.keys(p.responses || {}).length, 0);
                 return (
                   <div key={item.key} style={styles.setGroup}>
-                    <div style={styles.setGroupHeaderRow}>
-                      <button style={styles.setGroupHeaderBtn}
-                        onClick={() => toggleSet(item.key)}>
-                        <span style={styles.triangle}>{isOpen ? '▼' : '▶'}</span>
-                        <div style={{flex:1}}>
-                          <div style={styles.setGroupName}>📚 {item.setName}</div>
-                          <div style={styles.setGroupMeta}>
-                            {item.date} · {item.polls.length} polls · {totalResponses} total responses
+                      <div style={styles.setGroupHeaderRow}>
+                          <button style={styles.setGroupHeaderBtn}
+                                  onClick={() => toggleSet(item.key)}>
+                              <span style={styles.triangle}>{isOpen ? '▼' : '▶'}</span>
+                              <div style={{flex:1}}>
+                                  <div style={styles.setGroupName}>📚 {item.setName}</div>
+                                  <div style={styles.setGroupMeta}>
+                                      {item.date} · {item.polls.length} polls · {totalResponses} total responses
+                                  </div>
+                              </div>
+                          </button>
+                          <div style={{display:'flex', gap:'0.4rem', alignItems:'center'}}>
+                              <button
+                                  style={{...styles.exportBtn,
+                                          ...(copyFeedback[item.key] ? styles.exportBtnSuccess : {})}}
+                                  onClick={() => {
+                                      handleDownloadSession(item.setName, item.polls);
+                                      showFeedback(item.key);
+                                  }}>
+                                  {copyFeedback[item.key] ? '✓ Downloading' : '⬇ Session CSV'}
+                              </button>
+                              {confirmDeleteSet !== item.key ? (
+                                  <button style={styles.deleteBtn}
+                                          onClick={() => setConfirmDeleteSet(item.key)}
+                                          title="Delete this session">🗑</button>
+                              ) : (
+                                  <div style={styles.confirmRow}>
+                                      <span style={styles.confirmText}>
+                                          Delete all {item.polls.length} polls?
+                                      </span>
+                                      <button className="btn btn-primary"
+                                              style={{fontSize:'0.78rem', padding:'0.3rem 0.7rem', background:'#dc2626'}}
+                                              onClick={() => handleDeleteSet(item.key, item.polls)}>Yes</button>
+                                      <button className="btn btn-secondary"
+                                              style={{fontSize:'0.78rem', padding:'0.3rem 0.7rem'}}
+                                              onClick={() => setConfirmDeleteSet(null)}>Cancel</button>
+                                  </div>
+                              )}
                           </div>
-                        </div>
-                      </button>
-                      <button
-                        style={{...styles.exportBtn,
-                          ...(copyFeedback[item.key] ? styles.exportBtnSuccess : {})}}
-                        onClick={() => {
-                          handleDownloadSession(item.setName, item.polls);
-                          showFeedback(item.key);
-                        }}>
-                        {copyFeedback[item.key] ? '✓ Downloading' : '⬇ Session CSV'}
-                      </button>
-                    </div>
+                      </div>
                     {isOpen && (
                       <div style={styles.setGroupPolls}>
                         {item.polls.map(poll => (
