@@ -28,15 +28,34 @@ All data stays in your own Firebase project.
 - Set default duration and display policies for the whole set, with per-poll overrides
 - Edit sets in form view (one poll at a time) or text view (all at once)
 
-## Plain text poll format
+## Plain text poll set format
 
-Individual polls are separated by `---`.
-The first prompt line begins with `Q:`.
-A blank line is required to separate the prompt from the block of answers.
+- Individual polls are separated by `---`.
+- The first prompt line begins with `Q:`.
+- A blank line is required to separate the prompt from the block of answers.
 (This allows multi-line prompts.)
-The correct answer is marked with a `*` prefix.
-Each answer has a letter followed by `.`.
-Per-poll overrides go before the `Q:` line.
+- The correct answer is marked with a `*` prefix.
+- Each answer has a letter followed by `.`.
+- Per-poll overrides go before the `Q:` line.
+
+### Per-poll override keys
+
+| Key | Values | Default |
+|-----|--------|---------|
+| `duration` | seconds, e.g. `30`, `90` | poll set default |
+| `results` | `submit`, `manual`, `never` | poll set default |
+| `correct` | `results`, `manual`, `never` | poll set default |
+
+### Display policy values
+
+| Value | Meaning |
+|-------|---------|
+| `submit` | Students see results after they submit their answer |
+| `manual` | Instructor reveals results with a toggle on the dashboard |
+| `never` | Results never shown to students |
+| `results` | Correct answer shown at the same moment as results |
+
+### Example of a plain text poll set
 
 ```
 Q: What is photosynthesis?
@@ -56,22 +75,6 @@ Q: Which organelle contains chlorophyll?
   D. Vacuole
 ```
 
-### Per-poll override keys
-
-| Key | Values | Default |
-|-----|--------|---------|
-| `duration` | seconds, e.g. `30`, `90` | poll set default |
-| `results` | `submit`, `manual`, `never` | poll set default |
-| `correct` | `results`, `manual`, `never` | poll set default |
-
-### Display policy values
-
-| Value | Meaning |
-|-------|---------|
-| `submit` | Students see results after they submit their answer |
-| `manual` | Instructor reveals results with a toggle on the dashboard |
-| `never` | Results never shown to students |
-| `results` | Correct answer shown at the same moment as results |
 
 ## Setup
 
