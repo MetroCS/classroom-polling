@@ -1,3 +1,13 @@
+/**
+ * Copyright (C) 2026 Dr. Jody Paul
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * See the project LICENSE file for full GPL-3 details.
+ */
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { joinSession, leaveSession, submitAnswer, watchActivePoll } from '../utils/firebaseOps';
