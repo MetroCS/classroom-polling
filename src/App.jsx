@@ -10,7 +10,7 @@
  */
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import RoleSelector from './pages/RoleSelector';
-import TeacherPage  from './pages/TeacherPage';
+import InstructorPage  from './pages/InstructorPage';
 import StudentPage  from './pages/StudentPage';
 import PollSetDetail from './pages/PollSetDetail';
 import PollSets     from './pages/PollSets';
@@ -21,7 +21,7 @@ export default function App() {
     <BrowserRouter basename="/classroom-polling">
       <Routes>
         <Route path="/"          element={<RoleSelector />} />
-        <Route path="/teacher"   element={<TeacherPage />} />
+        <Route path="/instructor"   element={<InstructorPage />} />
         <Route path="/student"   element={<StudentPage />} />
         <Route path="/pollsets/:id" element={<PollSetDetail />} />
         <Route path="/pollsets"   element={<PollSets />} />

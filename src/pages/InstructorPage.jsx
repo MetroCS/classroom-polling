@@ -28,7 +28,7 @@ const CORRECT_OPTIONS = [
   { value: 'never',        label: 'Never' },
 ];
 
-export default function TeacherPage() {
+export default function InstructorPage() {
   const navigate = useNavigate();
   const [students, setStudents]           = useState([]);
   const [activePoll, setActivePoll]       = useState(null);
@@ -48,7 +48,7 @@ export default function TeacherPage() {
   const [correctPolicy, setCorrectPolicy] = useState('with_results');
 
   useEffect(() => {
-    if (localStorage.getItem("role") !== 'teacher') navigate('/');
+    if (localStorage.getItem("role") !== 'instructor') navigate('/');
   }, []);
 
   useEffect(() => {

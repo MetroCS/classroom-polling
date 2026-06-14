@@ -15,7 +15,7 @@ All data stays in your own Firebase project.
 - View poll history and attendance, grouped by poll set and session
 - CSV export of poll results (per-poll and per-session)
 - Delete individual polls from history
-- Password-protected teacher and history access
+- Password-protected instructor and history access
 
 ### For students
 - Join with just a name — no account needed
@@ -137,7 +137,7 @@ Copy the example file and fill in your values:
 cp .env.example .env.local
 ```
 
-Edit `.env.local` with your Firebase config values and a teacher password of your choice:
+Edit `.env.local` with your Firebase config values and an instructor password of your choice:
 
 ```
 VITE_FIREBASE_API_KEY=your_api_key
@@ -148,7 +148,7 @@ VITE_FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
 VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 VITE_FIREBASE_APP_ID=your_app_id
 
-VITE_TEACHER_PASSWORD=your_password_here
+VITE_INSTRUCTOR_PASSWORD=your_password_here
 ```
 
 **Never commit `.env.local` to git.** It is already listed in `.gitignore`.
@@ -166,7 +166,7 @@ npm run dev
 ```
 
 Open [http://localhost:5173/classroom-polling/](http://localhost:5173/classroom-polling/).
-Open two browser tabs — one as teacher, one as student — to verify everything works.
+Open two browser tabs — one as instructor, one as student — to verify everything works.
 
 ### Step 9 — Set your repo name in vite.config.js
 
@@ -223,7 +223,7 @@ git merge upstream/main
 
 ### Running a poll
 
-1. Open the app → **I'm the Teacher** → enter your password
+1. Open the app → **I'm the Instructor** → enter your password
 2. Click **New Poll** → enter question and options → click **Start Poll**
 3. Share your app URL with students — they click **I'm a Student**, enter their name, and wait
 4. Students see the poll instantly; results update live on your dashboard
@@ -239,7 +239,7 @@ git merge upstream/main
 
 ### Viewing history and attendance
 
-1. Click **History** → enter teacher password
+1. Click **History** → enter instructor password
 2. **Polls tab**: past polls grouped by set, expandable with per-option results
 3. **Attendance tab**: students who joined, grouped by date
 
@@ -247,7 +247,7 @@ git merge upstream/main
 
 | File | What to change |
 |------|---------------|
-| `.env.local` | Teacher password, Firebase config |
+| `.env.local` | Instructor password, Firebase config |
 | `firebase-rules.json` | Database security rules |
 | `vite.config.js` | Repository name for GitHub Pages base path |
 | `src/index.css` | Colors, fonts, visual design |
@@ -264,7 +264,7 @@ classroom-polling/
 │   │   └── csvExport.js      CSV export utilities
 │   ├── pages/
 │   │   ├── RoleSelector.jsx  Landing page
-│   │   ├── TeacherPage.jsx   Teacher dashboard
+│   │   ├── InstructorPage.jsx   Instructor dashboard
 │   │   ├── StudentPage.jsx   Student poll experience
 │   │   ├── PollHistory.jsx   History and attendance
 │   │   ├── PollSets.jsx      Poll set list and creation
@@ -290,7 +290,7 @@ The Firebase Spark (free) plan is sufficient for typical classroom use:
 
 ## Known limitations
 
-- Teacher password is a single shared secret; not suitable for multiple instructors sharing one instance
+- Instructor password is a single shared secret; not suitable for multiple instructors sharing one instance
 - Code formatting in questions is plain text only (markdown support planned)
 - Student names are self-reported and not authenticated
 
