@@ -156,7 +156,7 @@ VITE_TEACHER_PASSWORD=your_password_here
 ### Step 7 — Set Firebase security rules
 
 1. Firebase Console → **Realtime Database → Rules** tab
-2. Replace everything with the contents of `firebase-rules.json`
+2. Replace everything with the contents of [`firebase-rules.json`](firebase-rules.json)
 3. Click **Publish**
 
 ### Step 8 — Test locally

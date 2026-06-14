@@ -1,0 +1,48 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "session": {
+      ".read": "auth != null",
+      "students": {
+        "$student": {
+          ".write": "auth != null && (!newData.exists() || (newData.hasChildren(['joinedAt', 'date']) && newData.child('date').isString()))",
+          ".validate": "!newData.exists() || (newData.hasChildren(['joinedAt', 'date']) && newData.child('joinedAt').isNumber() && newData.child('date').isString() && newData.childrenCount() <= 3)"
+        }
+      },
+      "activePoll": {
+        ".write": "auth != null && (!newData.exists() || (newData.hasChildren(['id', 'question', 'options', 'duration', 'resultPolicy', 'correctPolicy', 'startedAt', 'ended', 'revealResults', 'revealCorrect']) && newData.child('id').isString() && newData.child('question').isString() && newData.child('options').hasChildren() && newData.child('duration').isNumber() && newData.child('duration').val() >= 1 && newData.child('duration').val() <= 3600 && newData.child('resultPolicy').isString() && newData.child('correctPolicy').isString() && newData.child('startedAt').isNumber() && newData.child('ended').isBoolean() && newData.child('revealResults').isBoolean() && newData.child('revealCorrect').isBoolean()))",
+        "responses": {
+          "$student": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 5"
+          }
+        }
+      },
+      "queue": {
+        ".write": "auth != null",
+        ".validate": "!newData.exists() || (newData.hasChildren(['setId', 'setName', 'currentIndex', 'totalPolls', 'sessionKey']) && newData.child('setId').isString() && newData.child('setName').isString() && newData.child('currentIndex').isNumber() && newData.child('totalPolls').isNumber() && newData.child('sessionKey').isString())"
+      }
+    },
+    "sessionStudents": {
+      ".read": "auth != null",
+      "$entry": {
+        ".write": "auth != null",
+        ".validate": "!newData.exists() || (newData.hasChildren(['name', 'date', 'joinedAt']) && newData.child('name').isString() && newData.child('date').isString() && newData.child('joinedAt').isNumber() && newData.childrenCount() <= 3)"
+      }
+    },
+    "pollHistory": {
+      ".read": "auth != null",
+      "$poll": {
+        ".write": "auth != null",
+        ".validate": "!newData.exists() || (newData.hasChildren(['id', 'question', 'options', 'duration', 'resultPolicy', 'correctPolicy', 'startedAt', 'endedAt']) && newData.child('id').isString() && newData.child('question').isString() && newData.child('options').hasChildren() && newData.child('duration').isNumber() && newData.child('startedAt').isNumber())"
+      }
+    },
+    "pollSets": {
+      ".read": "auth != null",
+      "$set": {
+        ".write": "auth != null",
+        ".validate": "!newData.exists() || (newData.hasChildren(['id', 'name', 'createdAt', 'defaults']) && newData.child('id').isString() && newData.child('name').isString() && newData.child('createdAt').isNumber())"
+      }
+    }
+  }
+}
