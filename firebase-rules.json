@@ -14,7 +14,7 @@
         ".write": "auth != null && (!newData.exists() || (newData.hasChildren(['id', 'question', 'options', 'duration', 'resultPolicy', 'correctPolicy', 'startedAt', 'ended', 'revealResults', 'revealCorrect']) && newData.child('id').isString() && newData.child('question').isString() && newData.child('options').hasChildren() && newData.child('duration').isNumber() && newData.child('duration').val() >= 1 && newData.child('duration').val() <= 3600 && newData.child('resultPolicy').isString() && newData.child('correctPolicy').isString() && newData.child('startedAt').isNumber() && newData.child('ended').isBoolean() && newData.child('revealResults').isBoolean() && newData.child('revealCorrect').isBoolean()))",
         "responses": {
           "$student": {
-            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 5"
+            ".validate": "newData.isNumber() && newData.val() >= 0 && (newData.val() % 1 == 0) && newData.val() < root.child('session/activePoll/options').childrenCount()"
           }
         }
       },
