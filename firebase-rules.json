@@ -7,7 +7,7 @@
       "students": {
         "$student": {
           ".write": "auth != null && (!newData.exists() || (newData.hasChildren(['joinedAt', 'date']) && newData.child('date').isString()))",
-          ".validate": "!newData.exists() || (newData.hasChildren(['joinedAt', 'date']) && newData.child('joinedAt').isNumber() && newData.child('date').isString() && newData.childrenCount() <= 3)"
+          ".validate": "!newData.exists() || (newData.hasChildren(['joinedAt', 'date']) && newData.child('joinedAt').isNumber() && newData.child('date').isString())"
         }
       },
       "activePoll": {
@@ -27,7 +27,7 @@
       ".read": "auth != null",
       "$entry": {
         ".write": "auth != null",
-        ".validate": "!newData.exists() || (newData.hasChildren(['name', 'date', 'joinedAt']) && newData.child('name').isString() && newData.child('date').isString() && newData.child('joinedAt').isNumber() && newData.childrenCount() <= 3)"
+        ".validate": "!newData.exists() || (newData.hasChildren(['name', 'date', 'joinedAt']) && newData.child('name').isString() && newData.child('date').isString() && newData.child('joinedAt').isNumber())"
       }
     },
     "pollHistory": {
