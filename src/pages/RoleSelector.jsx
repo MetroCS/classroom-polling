@@ -11,19 +11,19 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-const TEACHER_PASSWORD = import.meta.env.VITE_TEACHER_PASSWORD || 'changeme';
+const INSTRUCTOR_PASSWORD = import.meta.env.VITE_INSTRUCTOR_PASSWORD || 'changeme';
 
 export default function RoleSelector() {
   const navigate = useNavigate();
-  const [showTeacherLogin, setShowTeacherLogin] = useState(false);
+  const [showInstructorLogin, setShowInstructorLogin] = useState(false);
   const [pw, setPw] = useState('');
   const [err, setErr] = useState('');
 
-  function handleTeacherSubmit(e) {
+  function handleInstructorSubmit(e) {
     e.preventDefault();
-    if (pw === TEACHER_PASSWORD) {
-      localStorage.setItem("role", "teacher");
-      navigate('/teacher');
+    if (pw === INSTRUCTOR_PASSWORD) {
+      localStorage.setItem("role", "instructor");
+      navigate('/instructor');
     } else {
       setErr('Incorrect password.');
       setPw('');
@@ -46,16 +46,16 @@ export default function RoleSelector() {
           <span style={styles.roleLabel}>I'm a Student</span>
           <span style={styles.roleHint}>Join and answer polls</span>
         </button>
-        {!showTeacherLogin ? (
-          <button style={styles.roleCard} onClick={() => setShowTeacherLogin(true)}>
+        {!showInstructorLogin ? (
+          <button style={styles.roleCard} onClick={() => setShowInstructorLogin(true)}>
             <span style={styles.roleIcon}>📋</span>
-            <span style={styles.roleLabel}>I'm the Teacher</span>
+            <span style={styles.roleLabel}>I'm the Instructor</span>
             <span style={styles.roleHint}>Create and manage polls</span>
           </button>
         ) : (
-          <form style={{...styles.roleCard, gap:'0.75rem'}} onSubmit={handleTeacherSubmit}>
+          <form style={{...styles.roleCard, gap:'0.75rem'}} onSubmit={handleInstructorSubmit}>
             <span style={styles.roleIcon}>🔑</span>
-            <span style={styles.roleLabel}>Teacher Password</span>
+            <span style={styles.roleLabel}>Instructor Password</span>
             <input
               className="input"
               type="password"
@@ -72,7 +72,7 @@ export default function RoleSelector() {
             </button>
             <button type="button" className="btn btn-secondary"
               style={{width:'100%', justifyContent:'center', fontSize:'0.85rem'}}
-              onClick={() => { setShowTeacherLogin(false); setErr(''); setPw(''); }}>
+              onClick={() => { setShowInstructorLogin(false); setErr(''); setPw(''); }}>
               Cancel
             </button>
           </form>

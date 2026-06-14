@@ -49,7 +49,7 @@ export default function PollSets() {
   const [parseErr, setParseErr]       = useState('');
 
   useEffect(() => {
-    if (localStorage.getItem('role') !== 'teacher') navigate('/');
+    if (localStorage.getItem('role') !== 'instructor') navigate('/');
     return watchPollSets(setSets);
   }, []);
 
@@ -113,7 +113,7 @@ export default function PollSets() {
   return (
     <div style={styles.page}>
       <header style={styles.header}>
-        <button style={styles.back} onClick={() => navigate('/teacher')}>← Dashboard</button>
+        <button style={styles.back} onClick={() => navigate('/instructor')}>← Dashboard</button>
         <span style={styles.title}>Poll Sets</span>
         {view === 'list' && (
           <button className="btn btn-primary" onClick={() => setView('create')}>

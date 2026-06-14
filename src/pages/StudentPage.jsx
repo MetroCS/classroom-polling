@@ -87,10 +87,10 @@ export default function StudentPage() {
   const responseCount = activePoll ? Object.keys(activePoll.responses || {}).length : 0;
   const pollStopped = activePoll?.ended || timeLeft === 0;
 
-  // Determine what to show based on teacher policy + manual overrides
+  // Determine what to show based on instructor policy + manual overrides
   function shouldShowResults() {
     if (!activePoll) return false;
-    if (activePoll.revealResults) return true;      // teacher manually revealed
+    if (activePoll.revealResults) return true;      // instructor manually revealed
     if (activePoll.resultPolicy === 'never') return false;
     if (activePoll.resultPolicy === 'manual') return false;
     if (activePoll.resultPolicy === 'on_submit') return submitted || alreadyAnswered;
@@ -100,7 +100,7 @@ export default function StudentPage() {
   function shouldShowCorrect() {
     if (!activePoll) return false;
     if (activePoll.correctIndex == null) return false;
-    if (activePoll.revealCorrect) return true;      // teacher manually revealed
+    if (activePoll.revealCorrect) return true;      // instructor manually revealed
     if (activePoll.correctPolicy === 'never') return false;
     if (activePoll.correctPolicy === 'manual') return false;
     if (activePoll.correctPolicy === 'with_results') return shouldShowResults();
@@ -135,7 +135,7 @@ export default function StudentPage() {
       <div style={styles.waitCard} className="fade-up">
         <div style={styles.pulse} />
         <h2 style={{fontFamily:'var(--font-display)', fontSize:'1.5rem'}}>Hi, {name}! 👋</h2>
-        <p style={{color:'var(--muted)'}}>Waiting for the teacher to start a poll…</p>
+        <p style={{color:'var(--muted)'}}>Waiting for the instructor to start a poll…</p>
         <button style={styles.backLink}
           onClick={() => { leaveSession(name); navigate('/'); }}>Leave session</button>
       </div>
@@ -186,7 +186,7 @@ export default function StudentPage() {
         )}
         {activePoll.ended && (
           <div style={styles.stoppedBanner}>
-            ⏰ Time's up — waiting for teacher
+            ⏰ Time's up — waiting for instructor
           </div>
         )}
 
@@ -241,7 +241,7 @@ export default function StudentPage() {
           </div>
         )}
         {pollStopped && (alreadyAnswered || submitted) && (
-          <div style={styles.submittedBadge}>✓ Answer submitted — waiting for teacher</div>
+          <div style={styles.submittedBadge}>✓ Answer submitted — waiting for instructor</div>
         )}
       </div>
     </div>

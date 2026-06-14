@@ -39,7 +39,7 @@ export default function PollSetDetail() {
   const [nameValue, setNameValue]   = useState('');
 
   useEffect(() => {
-    if (localStorage.getItem('role') !== 'teacher') navigate('/');
+    if (localStorage.getItem('role') !== 'instructor') navigate('/');
     return watchPollSet(id, s => {
       if (!s) return;
       setPollSet(s);
@@ -155,7 +155,7 @@ export default function PollSetDetail() {
       resultPolicy:  first.resultPolicy  ?? d.resultPolicy  ?? 'on_submit',
       correctPolicy: first.correctPolicy ?? d.correctPolicy ?? 'with_results',
     });
-    navigate('/teacher');
+    navigate('/instructor');
   }
 
   if (!pollSet) return (

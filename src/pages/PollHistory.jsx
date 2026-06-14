@@ -15,7 +15,7 @@ import { db } from '../firebase';
 import { ref, onValue, remove } from 'firebase/database';
 import { pollToCsv, sessionToCsv, downloadCsv } from '../utils/csvExport';
 
-const HISTORY_PASSWORD = import.meta.env.VITE_TEACHER_PASSWORD || 'changeme';
+const HISTORY_PASSWORD = import.meta.env.VITE_INSTRUCTOR_PASSWORD || 'changeme';
 
 export default function PollHistory() {
   const navigate = useNavigate();
@@ -33,7 +33,7 @@ export default function PollHistory() {
   const [copyFeedback, setCopyFeedback] = useState({}); // key -> true
 
   useEffect(() => {
-    if (localStorage.getItem("historyAuth") === 'true' || localStorage.getItem("role") === 'teacher') setAuth(true);
+    if (localStorage.getItem("historyAuth") === 'true' || localStorage.getItem("role") === 'instructor') setAuth(true);
   }, []);
 
   useEffect(() => {
@@ -153,11 +153,11 @@ export default function PollHistory() {
         </div>
         <h2 style={{fontSize:'1.4rem', marginBottom:'0.25rem'}}>Poll History</h2>
         <p style={{color:'var(--muted)', marginBottom:'1.5rem', fontSize:'0.9rem'}}>
-          Enter the teacher password to view history and attendance.
+          Enter the instructor password to view history and attendance.
         </p>
         <form onSubmit={handleLogin}
           style={{display:'flex', flexDirection:'column', gap:'0.75rem'}}>
-          <input className="input" type="password" placeholder="Teacher password"
+          <input className="input" type="password" placeholder="Instructor password"
             value={pw} onChange={e => { setPw(e.target.value); setErr(''); }}
             autoFocus style={{textAlign:'center'}} />
           {err && <span style={styles.err}>{err}</span>}
