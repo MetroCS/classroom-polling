@@ -1,0 +1,49 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "session": {
+      ".read": "auth != null",
+      "students": {
+        "$student": {
+          ".write": "auth != null && (!newData.exists() || (newData.hasChildren(['joinedAt', 'date']) && newData.child('date').isString()))",
+          ".validate": "!newData.exists() || (newData.hasChildren(['joinedAt', 'date']) && newData.child('joinedAt').isNumber() && newData.child('date').isString())"
+        }
+      },
+      "activePoll": {
+        ".write": "auth != null",
+        ".validate": "!newData.exists() || (newData.hasChildren(['id', 'question', 'options', 'duration', 'resultPolicy', 'correctPolicy', 'startedAt', 'ended', 'revealResults', 'revealCorrect']) && newData.child('id').isString() && newData.child('question').isString() && newData.child('options').hasChildren() && newData.child('duration').isNumber() && newData.child('duration').val() >= 1 && newData.child('duration').val() <= 3600 && newData.child('resultPolicy').isString() && (newData.child('resultPolicy').val() == 'on_submit' || newData.child('resultPolicy').val() == 'manual' || newData.child('resultPolicy').val() == 'never') && newData.child('correctPolicy').isString() && (newData.child('correctPolicy').val() == 'with_results' || newData.child('correctPolicy').val() == 'manual' || newData.child('correctPolicy').val() == 'never') && newData.child('startedAt').isNumber() && newData.child('ended').isBoolean() && newData.child('revealResults').isBoolean() && newData.child('revealCorrect').isBoolean() && (!newData.child('correctIndex').exists() || (newData.child('correctIndex').isNumber() && newData.child('correctIndex').val() >= 0 && (newData.child('correctIndex').val() % 1 == 0) && newData.child('options').child(newData.child('correctIndex').val()).exists())))",
+        "responses": {
+          "$student": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && (newData.val() % 1 == 0) && root.child('session/activePoll/options').child(newData.val()).exists()"
+          }
+        }
+      },
+      "queue": {
+        ".write": "auth != null",
+        ".validate": "!newData.exists() || (newData.hasChildren(['setId', 'setName', 'currentIndex', 'totalPolls', 'sessionKey']) && newData.child('setId').isString() && newData.child('setName').isString() && newData.child('currentIndex').isNumber() && newData.child('totalPolls').isNumber() && newData.child('sessionKey').isString())"
+      }
+    },
+    "sessionStudents": {
+      ".read": "auth != null",
+      "$entry": {
+        ".write": "auth != null",
+        ".validate": "!newData.exists() || (newData.hasChildren(['name', 'date', 'joinedAt']) && newData.child('name').isString() && newData.child('date').isString() && newData.child('joinedAt').isNumber())"
+      }
+    },
+    "pollHistory": {
+      ".read": "auth != null",
+      "$poll": {
+        ".write": "auth != null",
+        ".validate": "!newData.exists() || (newData.hasChildren(['id', 'question', 'options', 'duration', 'resultPolicy', 'correctPolicy', 'startedAt']) && newData.child('id').isString() && newData.child('question').isString() && newData.child('options').hasChildren() && newData.child('duration').isNumber() && newData.child('resultPolicy').isString() && (newData.child('resultPolicy').val() == 'on_submit' || newData.child('resultPolicy').val() == 'manual' || newData.child('resultPolicy').val() == 'never') && newData.child('correctPolicy').isString() && (newData.child('correctPolicy').val() == 'with_results' || newData.child('correctPolicy').val() == 'manual' || newData.child('correctPolicy').val() == 'never') && newData.child('startedAt').isNumber() && (!newData.child('endedAt').exists() || newData.child('endedAt').isNumber()) && (!newData.child('correctIndex').exists() || (newData.child('correctIndex').isNumber() && newData.child('correctIndex').val() >= 0 && (newData.child('correctIndex').val() % 1 == 0) && newData.child('options').child(newData.child('correctIndex').val()).exists())))"
+      }
+    },
+    "pollSets": {
+      ".read": "auth != null",
+      "$set": {
+        ".write": "auth != null",
+        ".validate": "!newData.exists() || (newData.hasChildren(['id', 'name', 'createdAt', 'defaults']) && newData.child('id').isString() && newData.child('name').isString() && newData.child('createdAt').isNumber())"
+      }
+    }
+  }
+}
