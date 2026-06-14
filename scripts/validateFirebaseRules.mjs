@@ -2,10 +2,10 @@ import http from 'node:http';
 
 const host = process.env.FIREBASE_DATABASE_EMULATOR_HOST || '127.0.0.1:9000';
 const baseUrl = `http://${host}`;
-const authOverride = encodeURIComponent(JSON.stringify({
+const authOverride = JSON.stringify({
   uid: 'rules-smoke-test-user',
   token: {},
-}));
+});
 
 async function put(path, body) {
   const url = new URL(`${baseUrl}${path}.json`);
