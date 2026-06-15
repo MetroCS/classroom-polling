@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "validate:rules:json": "node -e \"JSON.parse(require('fs').readFileSync('firebase-rules.json','utf8'))\"",
-    "validate:rules": "npx firebase-tools@15.19.0 emulators:exec --only database --project demo-classroom-polling \"node scripts/validateFirebaseRules.mjs\"",
+    "validate:rules": "npx firebase-tools@15.19.0 emulators:exec --only database --project test-classroom-polling \"node scripts/validateFirebaseRules.mjs\"",
     "preview": "vite preview",
     "deploy": "npm run build && npx gh-pages -d dist"
   },
