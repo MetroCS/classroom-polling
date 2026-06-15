@@ -54,7 +54,7 @@ async function putShouldFail(path, body, reason) {
   }
 }
 
-// ── Shared fixtures ────────────────────────────────────────────────────────
+// Shared fixtures
 
 const joinedAt = { '.sv': 'timestamp' };
 const date = '2026-06-14';
@@ -72,7 +72,7 @@ const BASE_POLL = {
   revealCorrect: false,
 };
 
-// ── Tests ──────────────────────────────────────────────────────────────────
+// Test runner
 
 let passed = 0;
 let failed = 0;
@@ -89,7 +89,8 @@ async function test(name, fn) {
   }
 }
 
-// Student session writes
+// Student session
+
 console.log('\nStudent session');
 await test('student join writes accepted', async () => {
   await put('/session/students/Alice', { joinedAt, date });
@@ -97,13 +98,19 @@ await test('student join writes accepted', async () => {
 });
 
 // activePoll — no correct answer
+
 console.log('\nactivePoll — no correct answer');
 await test('poll without correctIndex accepted', async () => {
   await put('/session/activePoll', BASE_POLL);
   await del('/session/activePoll');
 });
 
-// activePoll — with correct answer (the previously broken case)
+// activePoll — with correct answer
+// Note: Firebase Rules expression language does not support dynamic child()
+// lookups by numeric key, so correctIndex range validity (i.e. that it points
+// to an existing option) is enforced by app logic in pollParser.js rather than
+// by the database rule. The rule validates type and sign only.
+
 console.log('\nactivePoll — with correct answer');
 await test('poll with correctIndex 0 accepted', async () => {
   await put('/session/activePoll', { ...BASE_POLL, correctIndex: 0 });
@@ -119,14 +126,15 @@ await test('poll with correctIndex 2 (last option) accepted', async () => {
 });
 
 // activePoll — invalid data rejected
+
 console.log('\nactivePoll — invalid data rejected');
-await test('poll with out-of-range correctIndex rejected', async () => {
-  await putShouldFail('/session/activePoll', { ...BASE_POLL, correctIndex: 5 },
-    'correctIndex 5 exceeds options length');
-});
 await test('poll with negative correctIndex rejected', async () => {
   await putShouldFail('/session/activePoll', { ...BASE_POLL, correctIndex: -1 },
     'negative correctIndex');
+});
+await test('poll with non-integer correctIndex rejected', async () => {
+  await putShouldFail('/session/activePoll', { ...BASE_POLL, correctIndex: 1.5 },
+    'fractional correctIndex');
 });
 await test('poll with missing required field rejected', async () => {
   const { id: _drop, ...incomplete } = BASE_POLL;
@@ -136,27 +144,43 @@ await test('poll with invalid resultPolicy rejected', async () => {
   await putShouldFail('/session/activePoll', { ...BASE_POLL, resultPolicy: 'immediately' },
     'unrecognised resultPolicy value');
 });
+await test('poll with invalid correctPolicy rejected', async () => {
+  await putShouldFail('/session/activePoll', { ...BASE_POLL, correctPolicy: 'always' },
+    'unrecognised correctPolicy value');
+});
 await test('poll with duration below minimum rejected', async () => {
   await putShouldFail('/session/activePoll', { ...BASE_POLL, duration: 0 },
     'duration < 1');
 });
+await test('poll with duration above maximum rejected', async () => {
+  await putShouldFail('/session/activePoll', { ...BASE_POLL, duration: 3601 },
+    'duration > 3600');
+});
 
-// Student response
+// Student responses
+
 console.log('\nStudent responses');
-await test('valid response accepted', async () => {
+await test('valid response index accepted', async () => {
   await put('/session/activePoll', { ...BASE_POLL, correctIndex: 1 });
   await put('/session/activePoll/responses/Alice', 1);
   await del('/session/activePoll');
 });
-await test('out-of-range response rejected', async () => {
+await test('negative response index rejected', async () => {
   await put('/session/activePoll', BASE_POLL);
-  await putShouldFail('/session/activePoll/responses/Alice', 9,
-    'response index 9 not in options');
+  await putShouldFail('/session/activePoll/responses/Alice', -1,
+    'negative response index');
+  await del('/session/activePoll');
+});
+await test('non-integer response index rejected', async () => {
+  await put('/session/activePoll', BASE_POLL);
+  await putShouldFail('/session/activePoll/responses/Alice', 0.5,
+    'fractional response index');
   await del('/session/activePoll');
 });
 
-// pollHistory — with correct answer (the previously broken case)
-console.log('\npollHistory — with correct answer');
+// pollHistory — with and without correct answer
+
+console.log('\npollHistory');
 await test('history entry with correctIndex accepted', async () => {
   await put('/pollHistory/poll_test', {
     ...BASE_POLL,
@@ -174,7 +198,7 @@ await test('history entry without correctIndex accepted', async () => {
   await del('/pollHistory/poll_test_2');
 });
 
-// ── Summary ────────────────────────────────────────────────────────────────
+// Summary
 
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
