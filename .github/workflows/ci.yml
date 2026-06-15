@@ -32,7 +32,13 @@ jobs:
       - name: Validate Firebase rules JSON
         run: npm run validate:rules:json
 
-      - name: Validate Firebase rules syntax
+      - name: Validate Firebase rules syntax and smoke test
+        # Validates firebase-rules.json syntax and runs behavioral smoke tests against
+        # the Firebase Database Emulator. This does NOT deploy the rules to the live
+        # Firebase project. After merging changes to firebase-rules.json, deploy manually:
+        #   npx firebase-tools deploy --only database --project YOUR_PROJECT_ID
+        # Automating deployment here would require a Firebase service-account secret in
+        # GitHub Actions — see README Step 7 for instructions.
         run: npm run validate:rules
 
       - name: Build app

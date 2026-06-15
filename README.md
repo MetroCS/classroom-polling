@@ -155,9 +155,23 @@ VITE_INSTRUCTOR_PASSWORD=your_password_here
 
 ### Step 7 — Set Firebase security rules
 
+The file [`firebase-rules.json`](firebase-rules.json) defines who can read and
+write each part of the database.
+
 1. Firebase Console → **Realtime Database → Rules** tab
 2. Replace everything with the contents of [`firebase-rules.json`](firebase-rules.json)
 3. Click **Publish**
+
+Note that the CI pipeline valideas the rules but does not deploy them automatically.
+Whenever the rules change, they must be deployed to the Firebase project directly.
+
+To do this from the Firebase CLI:
+```bash
+npx firebase-tools login
+npx firebase-tools deploy --only database --project YOUR_PROJECT_ID
+```
+Replace `YOUR_PROJECT_ID` with the Firebase project ID from your `.env.local`
+(`VITE_FIREBASE_PROEJCT_ID`).
 
 ### Step 8 — Test locally
 
