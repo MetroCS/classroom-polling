@@ -1,68 +1,42 @@
-import http from 'node:http';
+/**
+ * Firebase Rules smoke tests.
+ *
+ * Uses @firebase/rules-unit-testing so that auth tokens are injected
+ * correctly and the emulator enforces security rules.
+ *
+ * Run via: npm run validate:rules
+ * (which wraps this in `firebase emulators:exec --only database`)
+ */
+
+import { readFileSync } from 'node:fs';
+import { initializeTestEnvironment, assertSucceeds, assertFails }
+  from './node_modules/@firebase/rules-unit-testing/dist/esm/index.esm.js';
+import { ref, set, remove, get } from 'firebase/database';
+
+// Environment setup
 
 const host = process.env.FIREBASE_DATABASE_EMULATOR_HOST || '127.0.0.1:9000';
-const baseUrl = `http://${host}`;
-const authOverride = JSON.stringify({
-  uid: 'rules-smoke-test-user',
-  token: {},
+const [dbHost, dbPort] = host.split(':');
+
+const testEnv = await initializeTestEnvironment({
+  projectId: 'test-classroom-polling',
+  database: {
+    host: dbHost,
+    port: Number(dbPort),
+    rules: readFileSync('firebase-rules.json', 'utf8'),
+  },
 });
 
-async function request(method, path, body) {
-  const url = new URL(`${baseUrl}${path}.json`);
-  url.searchParams.set('auth_variable_override', authOverride);
-
-  const payload = body !== undefined ? JSON.stringify(body) : null;
-
-  const response = await new Promise((resolve, reject) => {
-    const req = http.request(url, {
-      method,
-      headers: payload
-        ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }
-        : {},
-    }, resolve);
-    req.on('error', reject);
-    if (payload) req.write(payload);
-    req.end();
-  });
-
-  const text = await new Promise((resolve, reject) => {
-    let data = '';
-    response.setEncoding('utf8');
-    response.on('data', chunk => { data += chunk; });
-    response.on('end', () => resolve(data));
-    response.on('error', reject);
-  });
-
-  return { status: response.statusCode, body: text };
-}
-
-async function put(path, body) {
-  const { status, body: text } = await request('PUT', path, body);
-  if (status < 200 || status >= 300) throw new Error(`PUT ${path} returned ${status}: ${text}`);
-}
-
-async function del(path) {
-  const { status, body: text } = await request('DELETE', path);
-  if (status < 200 || status >= 300) throw new Error(`DELETE ${path} returned ${status}: ${text}`);
-}
-
-/** Asserts that a PUT is rejected (expect a 4xx status). */
-async function putShouldFail(path, body, reason) {
-  const { status, body: text } = await request('PUT', path, body);
-  if (status >= 200 && status < 300) {
-    throw new Error(`PUT ${path} should have been rejected (${reason}) but got ${status}: ${text}`);
-  }
-}
+// Authenticated context (instructor / student — just needs auth != null)
+const auth = testEnv.authenticatedContext('test-user');
+const db   = auth.database();
 
 // Shared fixtures
-
-const joinedAt = { '.sv': 'timestamp' };
-const date = '2026-06-14';
 
 const BASE_POLL = {
   id: 'poll_test',
   question: 'Which answer is correct?',
-  options: { 0: 'Alpha', 1: 'Beta', 2: 'Gamma' },
+  options: ['Alpha', 'Beta', 'Gamma'],
   duration: 60,
   resultPolicy: 'on_submit',
   correctPolicy: 'with_results',
@@ -71,6 +45,17 @@ const BASE_POLL = {
   revealResults: false,
   revealCorrect: false,
 };
+
+async function writePoll(data) {
+  return set(ref(db, 'session/activePoll'), data);
+}
+
+async function clearPoll() {
+  // Use rules-bypassing context so cleanup never fails due to rules
+  await testEnv.withSecurityRulesDisabled(ctx =>
+    remove(ref(ctx.database(), 'session/activePoll'))
+  );
+}
 
 // Test runner
 
@@ -84,7 +69,7 @@ async function test(name, fn) {
     passed++;
   } catch (err) {
     console.error(`  ✗ ${name}`);
-    console.error(`    ${err.message}`);
+    console.error(`    ${err.message.split('\n')[0]}`);
     failed++;
   }
 }
@@ -92,113 +77,140 @@ async function test(name, fn) {
 // Student session
 
 console.log('\nStudent session');
-await test('student join writes accepted', async () => {
-  await put('/session/students/Alice', { joinedAt, date });
-  await put('/sessionStudents/2026-06-14_Alice', { name: 'Alice', date, joinedAt });
+
+await test('student join write accepted', async () => {
+  await assertSucceeds(
+    set(ref(db, 'session/students/Alice'), {
+      joinedAt: Date.now(),
+      date: '2026-06-14',
+    })
+  );
+  await assertSucceeds(
+    set(ref(db, 'sessionStudents/2026-06-14_Alice'), {
+      name: 'Alice',
+      date: '2026-06-14',
+      joinedAt: Date.now(),
+    })
+  );
 });
 
-// activePoll — no correct answer
+// activePoll — happy paths
 
 console.log('\nactivePoll — no correct answer');
+
 await test('poll without correctIndex accepted', async () => {
-  await put('/session/activePoll', BASE_POLL);
-  await del('/session/activePoll');
+  await assertSucceeds(writePoll(BASE_POLL));
+  await clearPoll();
 });
 
-// activePoll — with correct answer
-// Note: Firebase Rules expression language does not support dynamic child()
-// lookups by numeric key, so correctIndex range validity (i.e. that it points
-// to an existing option) is enforced by app logic in pollParser.js rather than
-// by the database rule. The rule validates type and sign only.
+console.log('\nactivePoll — with correct answer (previously broken)');
 
-console.log('\nactivePoll — with correct answer');
 await test('poll with correctIndex 0 accepted', async () => {
-  await put('/session/activePoll', { ...BASE_POLL, correctIndex: 0 });
-  await del('/session/activePoll');
-});
-await test('poll with correctIndex 1 accepted', async () => {
-  await put('/session/activePoll', { ...BASE_POLL, correctIndex: 1 });
-  await del('/session/activePoll');
-});
-await test('poll with correctIndex 2 (last option) accepted', async () => {
-  await put('/session/activePoll', { ...BASE_POLL, correctIndex: 2 });
-  await del('/session/activePoll');
+  await assertSucceeds(writePoll({ ...BASE_POLL, correctIndex: 0 }));
+  await clearPoll();
 });
 
-// activePoll — invalid data rejected
+await test('poll with correctIndex 1 accepted', async () => {
+  await assertSucceeds(writePoll({ ...BASE_POLL, correctIndex: 1 }));
+  await clearPoll();
+});
+
+await test('poll with correctIndex 2 (last option) accepted', async () => {
+  await assertSucceeds(writePoll({ ...BASE_POLL, correctIndex: 2 }));
+  await clearPoll();
+});
+
+// activePoll — rejection cases
+// Note: correctIndex range (index < options.length) is enforced by app logic
+// in pollParser.js, not by the database rule, because Firebase Rules expression
+// language does not support dynamic child() lookup by numeric key.
 
 console.log('\nactivePoll — invalid data rejected');
+
 await test('poll with negative correctIndex rejected', async () => {
-  await putShouldFail('/session/activePoll', { ...BASE_POLL, correctIndex: -1 },
-    'negative correctIndex');
+  await assertFails(writePoll({ ...BASE_POLL, correctIndex: -1 }));
 });
+
 await test('poll with non-integer correctIndex rejected', async () => {
-  await putShouldFail('/session/activePoll', { ...BASE_POLL, correctIndex: 1.5 },
-    'fractional correctIndex');
+  await assertFails(writePoll({ ...BASE_POLL, correctIndex: 1.5 }));
 });
-await test('poll with missing required field rejected', async () => {
+
+await test('poll with missing required field (id) rejected', async () => {
   const { id: _drop, ...incomplete } = BASE_POLL;
-  await putShouldFail('/session/activePoll', incomplete, 'missing id field');
+  await assertFails(writePoll(incomplete));
 });
+
 await test('poll with invalid resultPolicy rejected', async () => {
-  await putShouldFail('/session/activePoll', { ...BASE_POLL, resultPolicy: 'immediately' },
-    'unrecognised resultPolicy value');
+  await assertFails(writePoll({ ...BASE_POLL, resultPolicy: 'immediately' }));
 });
+
 await test('poll with invalid correctPolicy rejected', async () => {
-  await putShouldFail('/session/activePoll', { ...BASE_POLL, correctPolicy: 'always' },
-    'unrecognised correctPolicy value');
+  await assertFails(writePoll({ ...BASE_POLL, correctPolicy: 'always' }));
 });
-await test('poll with duration below minimum rejected', async () => {
-  await putShouldFail('/session/activePoll', { ...BASE_POLL, duration: 0 },
-    'duration < 1');
+
+await test('poll with duration below minimum (0) rejected', async () => {
+  await assertFails(writePoll({ ...BASE_POLL, duration: 0 }));
 });
-await test('poll with duration above maximum rejected', async () => {
-  await putShouldFail('/session/activePoll', { ...BASE_POLL, duration: 3601 },
-    'duration > 3600');
+
+await test('poll with duration above maximum (3601) rejected', async () => {
+  await assertFails(writePoll({ ...BASE_POLL, duration: 3601 }));
 });
 
 // Student responses
 
 console.log('\nStudent responses');
+
 await test('valid response index accepted', async () => {
-  await put('/session/activePoll', { ...BASE_POLL, correctIndex: 1 });
-  await put('/session/activePoll/responses/Alice', 1);
-  await del('/session/activePoll');
-});
-await test('negative response index rejected', async () => {
-  await put('/session/activePoll', BASE_POLL);
-  await putShouldFail('/session/activePoll/responses/Alice', -1,
-    'negative response index');
-  await del('/session/activePoll');
-});
-await test('non-integer response index rejected', async () => {
-  await put('/session/activePoll', BASE_POLL);
-  await putShouldFail('/session/activePoll/responses/Alice', 0.5,
-    'fractional response index');
-  await del('/session/activePoll');
+  await assertSucceeds(writePoll({ ...BASE_POLL, correctIndex: 1 }));
+  await assertSucceeds(set(ref(db, 'session/activePoll/responses/Alice'), 1));
+  await clearPoll();
 });
 
-// pollHistory — with and without correct answer
+await test('negative response index rejected', async () => {
+  await assertSucceeds(writePoll(BASE_POLL));
+  await assertFails(set(ref(db, 'session/activePoll/responses/Alice'), -1));
+  await clearPoll();
+});
+
+await test('non-integer response index rejected', async () => {
+  await assertSucceeds(writePoll(BASE_POLL));
+  await assertFails(set(ref(db, 'session/activePoll/responses/Alice'), 0.5));
+  await clearPoll();
+});
+
+// pollHistory
 
 console.log('\npollHistory');
+
 await test('history entry with correctIndex accepted', async () => {
-  await put('/pollHistory/poll_test', {
-    ...BASE_POLL,
-    correctIndex: 0,
-    endedAt: Date.now(),
-  });
-  await del('/pollHistory/poll_test');
-});
-await test('history entry without correctIndex accepted', async () => {
-  await put('/pollHistory/poll_test_2', {
-    ...BASE_POLL,
-    id: 'poll_test_2',
-    endedAt: Date.now(),
-  });
-  await del('/pollHistory/poll_test_2');
+  await assertSucceeds(
+    set(ref(db, 'pollHistory/poll_test'), {
+      ...BASE_POLL,
+      correctIndex: 0,
+      endedAt: Date.now(),
+    })
+  );
+  await testEnv.withSecurityRulesDisabled(ctx =>
+    remove(ref(ctx.database(), 'pollHistory/poll_test'))
+  );
 });
 
-// Summary
+await test('history entry without correctIndex accepted', async () => {
+  await assertSucceeds(
+    set(ref(db, 'pollHistory/poll_test_2'), {
+      ...BASE_POLL,
+      id: 'poll_test_2',
+      endedAt: Date.now(),
+    })
+  );
+  await testEnv.withSecurityRulesDisabled(ctx =>
+    remove(ref(ctx.database(), 'pollHistory/poll_test_2'))
+  );
+});
+
+// Teardown & summary
+
+await testEnv.cleanup();
 
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
