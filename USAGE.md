@@ -1,5 +1,19 @@
 # ClassPoll — Instructor Quick Reference
 
+## At a glance — who does what
+
+```
+Instructor                          Students
+──────────────────────────────────  ──────────────────────────
+Open URL → I'm the Instructor       Open same URL → I'm a Student
+Enter password                      Enter first name → Join
+Start Poll                          See question → tap answer → Submit
+Watch live results
+Close Poll / Next Poll              See results (when revealed to them)
+```
+
+---
+
 ## Before class
 - Open your ClassPoll URL and log in as **Instructor**
 - Share the same URL with students — that's the only setup they need
@@ -8,7 +22,6 @@ Students open the URL, tap **I'm a Student**, type their first name, and wait.
 No app, no account, no login.
 
 ---
-
 ## Running a spontaneous poll
 
 | Step | What you do |
@@ -23,16 +36,26 @@ No app, no account, no login.
 
 ---
 
-## Running a prepared poll set
+## Running an existing poll set
+
+| Step | What you do |
+|------|-------------|
+| 1 | **📊 Dashboard → Launch a Set** or **📚 Poll Sets** |
+| 2 | Select a set to open it |
+| 3 |  **Launch →** to launch the poll|
+| 4 | **End Poll** to stop accepting answers, **Next Poll →** to advance |
+| 5 | **Finish Set ✓** when done |
+
+---
+
+## Creating a poll set
 
 | Step | What you do |
 |------|-------------|
 | 1 | **📚 Poll Sets → + New Set** |
 | 2 | Name the set, set a default duration |
-| 3 | Paste your polls in plain text (see format below) → **Preview → Save Set** |
-| 4 | On class day: open the set → **Launch** |
-| 5 | **End Poll** to stop accepting answers, **Next Poll →** to advance |
-| 6 | **Finish Set ✓** when done |
+| 3 | Paste your polls in plain text (see format below) or **Build manually** |
+| 4 | → **Preview → Save Set** |
 
 ### Poll set plain text format
 
@@ -72,22 +95,10 @@ Use **When I choose** when you want to discuss before revealing — toggle the s
 
 ## Viewing past polls and attendance
 
-**🕐 History** (requires instructor password)
+**📜 History** (requires instructor password)
 
 - **Polls tab** — results grouped by poll set; expand any poll to see per-option counts
 - **Attendance tab** — students who joined, grouped by date
-- Export any session as CSV with the download button
+-  **↓ CSV button** — Export any session as CSV using the download button
 
 ---
-
-## At a glance — who does what
-
-```
-Instructor                          Students
-──────────────────────────────────  ──────────────────────────
-Open URL → I'm the Instructor       Open same URL → I'm a Student
-Enter password                      Enter first name → Join
-Start Poll                          See question → tap answer → Submit
-Watch live results
-Close Poll / Next Poll              See results (when you reveal them)
-```
