@@ -6,6 +6,9 @@ no app install, no account, no login required.
 Results appear in real time.
 All data stays in your own Firebase project.
 
+**Instructor quick reference:** see [USAGE.md](USAGE.md)
+for an at-a-glance guide to running polls and poll sets in class.
+
 ## Features
 
 ### For instructors
