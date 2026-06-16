@@ -201,7 +201,7 @@ export default function InstructorPage() {
             📚 Poll Sets
           </button>
           <button style={styles.navBtn} onClick={() => navigate('/history')}>
-            🕐 History
+            📜 History
           </button>
         </nav>
         <div style={styles.sidebarBottom}>
