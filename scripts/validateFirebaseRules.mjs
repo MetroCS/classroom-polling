@@ -48,7 +48,7 @@ function makeAuthApp(uid) {
     `auth-app-${uid}-${Date.now()}`,
   );
   const db = getDatabase(app);
-  connectDatabaseEmulator(db, dbHost, dbPort, { mockUserToken: { sub: uid, uid } });
+  connectDatabaseEmulator(db, dbHost, dbPort, { mockUserToken: { sub: uid } });
   return { app, db };
 }
 
@@ -197,7 +197,6 @@ console.log('\nStudent responses');
 
 await test('valid response index accepted', async () => {
   await expectSucceeds(writePoll({ ...BASE_POLL, correctIndex: 1 }));
-  xundo
   await expectSucceeds(set(responsesRef('Alice'), 1));
   await clearPoll();
 });
