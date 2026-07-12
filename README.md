@@ -6,8 +6,9 @@ no app install, no account, no login required.
 Results appear in real time.
 All data stays in your own Firebase project.
 
-**Instructor quick reference:** see [USAGE.md](USAGE.md)
-for an at-a-glance guide to running polls and poll sets in class.
+> [!TIP]
+> **Instructor quick reference:** See [USAGE.md](USAGE.md)
+> for an at-a-glance guide to running polls and poll sets in class.
 
 ## Features
 
@@ -38,7 +39,7 @@ for an at-a-glance guide to running polls and poll sets in class.
 - A blank line is required to separate the prompt from the block of answers.
 (This allows multi-line prompts.)
 - The correct answer is marked with a `*` prefix.
-- Each answer has a letter followed by `.`.
+- Each answer has a letter followed by `.`
 - Per-poll overrides go before the `Q:` line.
 
 ### Per-poll override keys
@@ -93,7 +94,8 @@ Each instructor deploys their own instance with their own Firebase project, so s
 
 ### Step 1 — Fork this repository
 
-Click **Fork** at the top right of this page. Clone your fork:
+Click **Fork** at the top right of this page to create your own fork.  
+Then clone your fork:
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/classroom-polling.git
@@ -113,13 +115,13 @@ npm install
 2. Click **Create Database** → choose your region
 3. If prompted for security rules, choose locked mode — you will set them in Step 7
 
-If the setup dialog does not show an Enable button, use the Firebase CLI:
-
-```bash
-npm install -g firebase-tools
-firebase login
-firebase init database
-```
+> [!TIP]
+> If the setup dialog does not show an Enable button, use the Firebase CLI:
+> ```bash
+> npm install -g firebase-tools
+> firebase login
+> firebase init database
+> ```
 
 ### Step 4 — Enable Anonymous Authentication
 
@@ -154,7 +156,8 @@ VITE_FIREBASE_APP_ID=your_app_id
 VITE_INSTRUCTOR_PASSWORD=your_password_here
 ```
 
-**Never commit `.env.local` to git.** It is already listed in `.gitignore`.
+> [!IMPORTANT]
+> **Never commit `.env.local` to git.** It is already listed in `.gitignore`.
 
 ### Step 7 — Set Firebase security rules
 
